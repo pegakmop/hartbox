@@ -1,0 +1,13 @@
+/target
+*.cpio
+/tests/isa/out
+/examples/work
+/ios/build/
+/ios/rvemu-ios/target/
+/disk.img
+/originals-before-speed-round.tar.gz
+*.bak
+.DS_Store
+__pycache__/
+xcuserdata/
+*.xcuserstate

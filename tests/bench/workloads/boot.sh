@@ -1,0 +1,1 @@
+echo BOOT_ONLY

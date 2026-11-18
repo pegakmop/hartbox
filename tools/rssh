@@ -1,0 +1,577 @@
+#!/bin/sh
+# rssh - find your devices and ssh into them. One POSIX shell script that runs
+# inside the emulator (Alpine) and on macOS. It uses OpenSSH for the encrypted
+# connection and does the rest: start a server, find devices, pair, connect.
+#
+#   rssh start [--pair]   device: run an ssh server and announce it (Alpine, macOS)
+#   rssh stop             stop it
+#   rssh status           what is running
+#   rssh list             find devices on this machine and the network
+#   rssh pair NAME        authorize this machine on NAME (once)
+#   rssh NAME [command]   log in (pairs first if needed); user@NAME picks the user
+#   rssh set background on|off|status    keep the phone app running with the screen off
+#   rssh key              print this machine's public key
+#   rssh trust 'KEY'      device: authorize a public key by hand
+
+PORT=${RSSH_PORT:-2222}      # the port a device is reached on from outside (the phone's forward)
+CTL_HOST=10.0.2.2            # the host side of the emulator: the iOS app's control port
+CTL_PORT=${RSSH_CTL_PORT:-2223}
+OS=$(uname -s)
+HOME=${HOME:-/root}
+STATE=$HOME/.rssh            # this machine's key, known hosts and device cache
+DIR=/etc/rssh                # device side: server config and host key
+SSHD_PID=/run/rssh-sshd.pid
+PAIRING=/run/rssh-pairing      # exists while the pairing window is open (gone after a reboot)
+ADV_PID=$STATE/advertise.pid
+PAIR_SECS=300
+TMP=
+
+say() { printf '%s\n' "$*"; }
+err() { printf 'rssh: %s\n' "$*" >&2; }
+die() { err "$*"; exit 1; }
+
+cleanup() { if [ -n "$TMP" ] && [ -d "$TMP" ]; then rm -rf "$TMP"; fi; TMP=; return 0; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM
+
+
+# A device name: lower case letters, digits and dashes.
+clean_name() {
+	printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n-' '-' | sed 's/^-*//; s/-*$//' | cut -c1-30
+}
+
+usage() {
+	cat <<'EOF'
+usage: rssh COMMAND
+
+  start [--pair]   run an ssh server on this machine and announce it
+  stop             stop the server
+  status           show what is running
+  list             list devices (this Mac, the phone's guest, other machines)
+  pair NAME        authorize this machine on NAME (asks for the pair code once)
+  NAME [command]   log in to NAME; user@NAME to pick the user
+  set background on|off|status   phone: keep running with the screen off
+  forget NAME      drop a device (after it was reset)
+  key              print this machine's public key
+  trust 'KEY'      device: authorize a public key by hand
+
+On the device (Alpine), run:   rssh start
+On the Mac:                    rssh list ; rssh <device>
+EOF
+}
+
+# ---------------------------------------------------------------- probing
+
+# The first line a TCP server sends, or nothing. The input stays open for a
+# moment so the line is read before nc sees the end of its input.
+banner() {
+	{ sleep 0.5; } | nc -w 1 "$1" "$2" 2>/dev/null | head -n 1 | tr -d '\r'
+}
+
+# The device name an rssh server puts in its version string, or nothing.
+banner_name() {
+	printf '%s' "$1" | sed -n 's/^SSH-2\.0-.* rssh=\([a-z0-9-]*\).*/\1/p'
+}
+
+# ---------------------------------------------------------------- control port (phone app)
+
+# Send one line to the phone app's control port and print the reply. Only the
+# emulator has it; nothing is printed anywhere else.
+ctl() {
+	[ "$OS" = Linux ] || return 1
+	command -v nc >/dev/null 2>&1 || return 1
+	{ printf '%s\n' "$1"; sleep 1; } | nc -w 4 "$CTL_HOST" "$CTL_PORT" 2>/dev/null | tr -d '\r'
+}
+
+# ---------------------------------------------------------------- keys and known devices
+
+ensure_key() {
+	mkdir -p "$STATE" && chmod 700 "$STATE"
+	if [ ! -f "$STATE/id_ed25519" ]; then
+		command -v ssh-keygen >/dev/null 2>&1 || install_client
+		ssh-keygen -q -t ed25519 -N '' -C "rssh-$(clean_name "$(hostname 2>/dev/null)")" -f "$STATE/id_ed25519" \
+			|| die "cannot create a key"
+	fi
+}
+
+# Install the ssh client where the OS has a package manager that can.
+install_client() {
+	if command -v apk >/dev/null 2>&1; then
+		say "installing openssh-client ..."
+		apk add --no-cache openssh-client-default openssh-keygen >/dev/null 2>&1 \
+			|| apk add --no-cache openssh >/dev/null 2>&1 \
+			|| die "cannot install the ssh client (is the network up? try: apk add openssh)"
+	fi
+	command -v ssh >/dev/null 2>&1 || die "ssh is not installed"
+}
+
+install_server() {
+	[ -x /usr/sbin/sshd ] && command -v ssh-keygen >/dev/null 2>&1 && return 0
+	command -v apk >/dev/null 2>&1 || die "sshd is not installed"
+	say "installing openssh (once) ..."
+	apk add --no-cache openssh >/dev/null 2>&1 || die "cannot install openssh (is the network up? try: apk add openssh)"
+}
+
+# $STATE/devices: one line per device that was reached once: name host port user
+cache_put() {
+	mkdir -p "$STATE"
+	{ [ -f "$STATE/devices" ] && grep -v "^$1 " "$STATE/devices"; printf '%s %s %s %s\n' "$1" "$2" "$3" "$4"; } > "$STATE/devices.new" 2>/dev/null
+	mv "$STATE/devices.new" "$STATE/devices"
+}
+
+cache_get() {
+	[ -f "$STATE/devices" ] && awk -v n="$1" '$1 == n { print $2 "\t" $3 "\t" $4; exit }' "$STATE/devices"
+}
+
+paired() {
+	[ -f "$STATE/known_hosts" ] && ssh-keygen -F "rssh-$1" -f "$STATE/known_hosts" >/dev/null 2>&1
+}
+
+# ---------------------------------------------------------------- discovery
+
+# Tab separated "name host port user" lines, one per device found.
+discover() {
+	TMP=$(mktemp -d "${TMPDIR:-/tmp}/rssh.XXXXXX") || die "cannot create a temporary directory"
+	: > "$TMP/found"
+	case $OS in
+	Darwin) discover_mac ;;
+	*) discover_guest ;;
+	esac
+	sort -u "$TMP/found"
+	cleanup
+}
+
+# macOS: Bonjour (the phone app and other rssh machines announce _rssh._tcp)
+# plus the ports an emulator forwards on this Mac.
+discover_mac() {
+	self=$(clean_name "$(scutil --get LocalHostName 2>/dev/null || hostname -s)")
+	dns-sd -B _rssh._tcp local. > "$TMP/browse" 2>&1 &
+	bp=$!
+	i=0
+	while [ $i -lt 8 ]; do
+		sleep 0.25
+		i=$((i + 1))
+	done
+	kill $bp 2>/dev/null; wait $bp 2>/dev/null
+	awk '$2 == "Add" { n = $7; for (i = 8; i <= NF; i++) n = n " " $i; print n }' "$TMP/browse" | sort -u > "$TMP/names"
+	k=0
+	pids=
+	while IFS= read -r svc; do
+		[ -n "$svc" ] || continue
+		k=$((k + 1))
+		dns-sd -L "$svc" _rssh._tcp local. > "$TMP/res.$k" 2>&1 &
+		pids="$pids $!"
+	done < "$TMP/names"
+	if [ $k -gt 0 ]; then
+		i=0
+		while [ $i -lt 6 ]; do
+			sleep 0.25
+			i=$((i + 1))
+		done
+		kill $pids 2>/dev/null; wait $pids 2>/dev/null
+		j=1
+		while [ $j -le $k ]; do
+			line=$(sed -n 's/.* can be reached at \(.*\):\([0-9][0-9]*\) (interface.*/\1 \2/p' "$TMP/res.$j" | head -n 1)
+			if [ -n "$line" ]; then
+				host=${line% *}; port=${line##* }
+				svc=$(sed -n "${j}p" "$TMP/names")
+				user=$(sed -n 's/^ *\(.* \)\{0,1\}user=\([^ ]*\).*/\2/p' "$TMP/res.$j" | head -n 1)
+				name=$(clean_name "$svc")
+				[ "$name" = "$self" ] || printf '%s\t%s\t%s\t%s\n' "$name" "${host%.}" "$port" "${user:-root}" >> "$TMP/found"
+			fi
+			j=$((j + 1))
+		done
+	fi
+	# Emulators on this Mac: a forward on a loopback port (rvemu --forward 2222:22).
+	p=$PORT
+	n=0
+	while [ $n -lt 8 ]; do
+		( b=$(banner 127.0.0.1 $((p + n)))
+		  case $b in
+		  SSH-*) nm=$(banner_name "$b")
+			printf '%s\t127.0.0.1\t%s\troot\n' "${nm:-local-$((p + n))}" $((p + n)) >> "$TMP/found" ;;
+		  esac ) &
+		n=$((n + 1))
+	done
+	wait
+}
+
+# The emulator: ask the phone app (it browses Bonjour), and look at the host.
+discover_guest() {
+	ctl list | awk -F'\t' '$1 == "dev" && NF >= 5 { print $2 "\t" $3 "\t" $4 "\t" $5 }' >> "$TMP/found"
+	b=$(banner $CTL_HOST 22)
+	case $b in
+	SSH-*) printf 'host\t%s\t22\t\n' "$CTL_HOST" >> "$TMP/found" ;;
+	esac
+}
+
+# Find one device. Sets D_NAME D_HOST D_PORT D_USER; $1 is "NAME" or "USER@NAME".
+# With $2 = fast, the address of the last successful login is used without looking
+# around first (the caller finds the device again if that address no longer works).
+resolve() {
+	D_USER=
+	case $1 in
+	*@*) D_USER=${1%@*}; want=${1#*@} ;;
+	*) want=$1 ;;
+	esac
+	want=$(clean_name "$want")
+	[ -n "$want" ] || die "no device name given"
+	if [ "$2" = fast ]; then
+		c=$(cache_get "$want")
+		if [ -n "$c" ]; then
+			D_NAME=$want; D_HOST=$(printf '%s' "$c" | cut -f1); D_PORT=$(printf '%s' "$c" | cut -f2); u=$(printf '%s' "$c" | cut -f3)
+			[ -n "$D_USER" ] || D_USER=$u
+			[ -n "$D_USER" ] && return 0
+		fi
+	fi
+	found=$(discover)
+	# An exact name, or a name that starts with what was typed (when that is unambiguous).
+	hit=$(printf '%s\n' "$found" | awk -F'\t' -v w="$want" '$1 == w { print; exit }')
+	if [ -z "$hit" ]; then
+		hit=$(printf '%s\n' "$found" | awk -F'\t' -v w="$want" 'index($1, w) == 1 { print }')
+		[ "$(printf '%s\n' "$hit" | grep -c .)" -le 1 ] || die "'$want' matches several devices: $(printf '%s\n' "$hit" | cut -f1 | tr '\n' ' ')"
+	fi
+	if [ -n "$hit" ]; then
+		D_NAME=$(printf '%s' "$hit" | cut -f1); D_HOST=$(printf '%s' "$hit" | cut -f2)
+		D_PORT=$(printf '%s' "$hit" | cut -f3); u=$(printf '%s' "$hit" | cut -f4)
+	else
+		c=$(cache_get "$want")
+		[ -n "$c" ] || die "no device called '$want' (run: rssh list)"
+		D_NAME=$want; D_HOST=$(printf '%s' "$c" | cut -f1); D_PORT=$(printf '%s' "$c" | cut -f2); u=$(printf '%s' "$c" | cut -f3)
+		err "'$want' was not announced; trying the last address $D_HOST:$D_PORT"
+	fi
+	[ -n "$D_USER" ] || D_USER=$u
+	[ -n "$D_USER" ] || die "'$D_NAME' needs a user name: rssh USER@$D_NAME"
+}
+
+# ---------------------------------------------------------------- client side
+
+# ssh to the resolved device. The host key is remembered under the device's name,
+# so a new address or port does not matter.
+run_ssh() {
+	ssh -i "$STATE/id_ed25519" -p "$D_PORT" -o IdentitiesOnly=yes -o UserKnownHostsFile="$STATE/known_hosts" \
+		-o HashKnownHosts=no -o HostKeyAlias="rssh-$D_NAME" -o ServerAliveInterval=15 -o ServerAliveCountMax=6 "$@"
+}
+
+cmd_list() {
+	if [ "$OS" = Darwin ]; then
+		command -v dns-sd >/dev/null 2>&1 || die "dns-sd is missing"
+	fi
+	found=$(discover)
+	if [ -z "$found" ]; then
+		say "no devices found."
+		if [ "$OS" = Darwin ]; then
+			say "On the device run: rssh start   (the phone app and the same Wi-Fi are needed for the phone)"
+		else
+			say "On the Mac run: rssh start   (then it is listed here)"
+		fi
+		return 0
+	fi
+	printf '%-18s %-30s %s\n' NAME ADDRESS STATE
+	printf '%s\n' "$found" | while IFS='	' read -r name host port user; do
+		if paired "$name"; then st=paired; else st="new: rssh pair $name"; fi
+		[ -n "$user" ] || st="$st (user@$name)"
+		printf '%-18s %-30s %s\n' "$name" "$host:$port" "$st"
+	done
+}
+
+cmd_forget() {
+	[ -n "$1" ] || die "usage: rssh forget NAME"
+	n=$(clean_name "$1")
+	[ -f "$STATE/known_hosts" ] && ssh-keygen -R "rssh-$n" -f "$STATE/known_hosts" >/dev/null 2>&1
+	rm -f "$STATE/known_hosts.old"
+	[ -f "$STATE/devices" ] && { grep -v "^$n " "$STATE/devices" > "$STATE/devices.new"; mv "$STATE/devices.new" "$STATE/devices"; }
+	say "forgot $n; it will ask for the pair code again."
+}
+
+cmd_key() {
+	ensure_key
+	cat "$STATE/id_ed25519.pub"
+}
+
+cmd_pair() {
+	[ -n "$1" ] || die "usage: rssh pair NAME"
+	command -v ssh >/dev/null 2>&1 || install_client
+	ensure_key
+	resolve "$1"
+	say "Pairing with $D_NAME ($D_USER@$D_HOST:$D_PORT)."
+	say "Compare the fingerprint ssh shows with the one 'rssh start' printed on the device,"
+	say "then enter the pair code (the password) shown there."
+	run_ssh -o StrictHostKeyChecking=ask -o PreferredAuthentications=password,keyboard-interactive \
+		-o PubkeyAuthentication=no -o NumberOfPasswordPrompts=3 "$D_USER@$D_HOST" \
+		'umask 077; mkdir -p .ssh; k=$(cat); touch .ssh/authorized_keys; grep -qxF "$k" .ssh/authorized_keys || printf "%s\n" "$k" >> .ssh/authorized_keys' \
+		< "$STATE/id_ed25519.pub" || die "pairing failed (wrong code, or the pairing window closed: run 'rssh start --pair' on the device; if the device was reset: rssh forget $D_NAME)"
+	run_ssh -o StrictHostKeyChecking=yes -o BatchMode=yes "$D_USER@$D_HOST" \
+		'[ -x /usr/local/bin/rssh ] && /usr/local/bin/rssh endpair >/dev/null 2>&1; true' >/dev/null 2>&1 \
+		|| die "paired, but logging in with the key failed"
+	cache_put "$D_NAME" "$D_HOST" "$D_PORT" "$D_USER"
+	say "Paired. Log in with: rssh $D_NAME"
+}
+
+cmd_connect() {
+	command -v ssh >/dev/null 2>&1 || install_client
+	ensure_key
+	target=$1; shift
+	resolve "$target" fast
+	if ! paired "$D_NAME"; then
+		say "$D_NAME is not paired with this machine yet."
+		cmd_pair "${D_USER:+$D_USER@}$D_NAME" || exit 1
+		resolve "$target"
+	fi
+	run_ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=6 "$D_USER@$D_HOST" "$@"
+	rc=$?
+	if [ $rc -eq 255 ]; then
+		# Not reachable at the last address: look around once and try the address found now.
+		old="$D_HOST:$D_PORT"
+		resolve "$target"
+		if [ "$D_HOST:$D_PORT" != "$old" ]; then
+			run_ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=6 "$D_USER@$D_HOST" "$@"
+			rc=$?
+		fi
+		[ $rc -ne 255 ] || err "could not log in to $D_NAME; if it was reset, pair again: rssh forget $D_NAME ; rssh pair $D_NAME"
+	fi
+	[ $rc -eq 255 ] || cache_put "$D_NAME" "$D_HOST" "$D_PORT" "$D_USER"
+	exit $rc
+}
+
+# ---------------------------------------------------------------- device side (Alpine)
+
+device_name() {
+	n=
+	[ -f $DIR/name ] && n=$(cat $DIR/name)
+	if [ -z "$n" ]; then
+		n=$(ctl 'name' | sed -n 's/^ok name=\([a-z0-9-]*\).*/\1/p')
+	fi
+	if [ -z "$n" ]; then
+		n="alpine-$(tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 4)"
+	fi
+	printf '%s' "$(clean_name "$n")"
+}
+
+write_config() { # $1 = pairing (1/0), $2 = name
+	umask 077
+	{
+		echo "# written by rssh; do not edit"
+		echo "Port 22"
+		echo "HostKey $DIR/ssh_host_ed25519_key"
+		echo "PidFile $SSHD_PID"
+		echo "AuthorizedKeysFile .ssh/authorized_keys"
+		echo "PubkeyAuthentication yes"
+		echo "KbdInteractiveAuthentication no"
+		echo "MaxAuthTries 3"
+		echo "LoginGraceTime 20"
+		echo "MaxStartups 4:50:10"
+		echo "ClientAliveInterval 30"
+		echo "ClientAliveCountMax 6"
+		echo "X11Forwarding no"
+		echo "VersionAddendum rssh=$2"
+		[ -x /usr/lib/ssh/sftp-server ] && echo "Subsystem sftp /usr/lib/ssh/sftp-server"
+		if [ "$1" = 1 ]; then
+			echo "PermitRootLogin yes"
+			echo "PasswordAuthentication yes"
+		else
+			echo "PermitRootLogin prohibit-password"
+			echo "PasswordAuthentication no"
+		fi
+	} > $DIR/sshd_config.new
+	mv $DIR/sshd_config.new $DIR/sshd_config
+}
+
+sshd_running() {
+	[ -f $SSHD_PID ] && kill -0 "$(cat $SSHD_PID)" 2>/dev/null
+}
+
+# Start sshd, or make a running one read the new configuration (sshd re-executes itself on SIGHUP).
+sshd_apply() {
+	/usr/sbin/sshd -t -f $DIR/sshd_config || die "the ssh server configuration is not valid"
+	if sshd_running; then
+		kill -HUP "$(cat $SSHD_PID)"
+	else
+		/usr/sbin/sshd -f $DIR/sshd_config || die "cannot start sshd"
+	fi
+	i=0
+	while [ $i -lt 20 ] && ! sshd_running; do sleep 0.25; i=$((i + 1)); done
+	sshd_running || die "sshd did not start"
+}
+
+# root has no password except the pair code during the pairing window.
+lock_password() {
+	sed -i 's/^root:[^:]*:/root:*:/' /etc/shadow 2>/dev/null
+	return 0
+}
+
+has_keys() {
+	[ -f /root/.ssh/authorized_keys ] && grep -q '^[a-z]' /root/.ssh/authorized_keys
+}
+
+# Close the pairing window: key login only, and the temporary password is gone again.
+cmd_endpair() {
+	[ "$OS" = Linux ] && [ -f $PAIRING ] || exit 0
+	rm -f $PAIRING
+	name=$(device_name)
+	write_config 0 "$name"
+	lock_password
+	sshd_running && sshd_apply
+	exit 0
+}
+
+cmd_start() {
+	[ "$OS" = Darwin ] && { start_mac "$@"; return; }
+	[ "$(id -u)" = 0 ] || die "run as root"
+	quiet=0; want_pair=0
+	for a in "$@"; do
+		case $a in
+		--boot) quiet=1 ;;
+		--pair) want_pair=1 ;;
+		*) die "unknown option $a" ;;
+		esac
+	done
+	install_server
+	mkdir -p $DIR /root/.ssh /run && chmod 700 /root/.ssh
+	[ -f $DIR/ssh_host_ed25519_key ] || ssh-keygen -q -t ed25519 -N '' -C rssh -f $DIR/ssh_host_ed25519_key \
+		|| die "cannot create the host key"
+	name=$(device_name)
+	printf '%s\n' "$name" > $DIR/name
+	pairing=0
+	if [ $quiet = 0 ] && { ! has_keys || [ $want_pair = 1 ]; }; then pairing=1; fi
+	[ $quiet = 1 ] && lock_password
+	write_config $pairing "$name"
+	if [ $pairing = 1 ]; then
+		pin=$(tr -dc 'a-hj-km-np-z2-9' < /dev/urandom | head -c 8)
+		[ ${#pin} = 8 ] || die "no random numbers"
+		echo "root:$pin" | chpasswd 2>/dev/null || die "cannot set the pair code"
+		: > $PAIRING
+		( sleep $PAIR_SECS; /usr/local/bin/rssh endpair ) >/dev/null 2>&1 &
+	fi
+	sshd_apply
+	touch $DIR/enabled
+	reply=$(ctl "expose on $name")
+	[ -n "$reply" ] || [ $quiet = 0 ] || { sleep 2; reply=$(ctl "expose on $name"); }
+	case $reply in
+	*err*) err "the app could not open the port: $(printf '%s' "$reply" | sed -n 's/^err *//p' | head -n 1)" ;;
+	esac
+	[ $quiet = 1 ] && return 0
+	fp=$(ssh-keygen -l -E sha256 -f $DIR/ssh_host_ed25519_key.pub | awk '{print $2}')
+	say "ssh server is running as '$name'."
+	say "  fingerprint: $fp"
+	if [ $pairing = 1 ]; then
+		say "  pair code:   $pin   (valid $((PAIR_SECS / 60)) minutes)"
+		say "Now, on the other computer:   rssh list ; rssh $name"
+	else
+		say "Paired computers can log in:   rssh $name"
+		say "To add another computer, run: rssh start --pair"
+	fi
+	case $reply in
+	ok*) ;;
+	*) say "(no phone app control port here: reach this device on the forwarded port, e.g. rvemu --net --forward 0.0.0.0:$PORT:22)" ;;
+	esac
+}
+
+cmd_boot() {
+	[ "$OS" = Linux ] && [ -f $DIR/enabled ] || exit 0
+	cmd_start --boot
+}
+
+cmd_stop() {
+	if [ "$OS" = Darwin ]; then
+		stop_mac
+		return
+	fi
+	[ "$(id -u)" = 0 ] || die "run as root"
+	rm -f $DIR/enabled
+	if sshd_running; then kill "$(cat $SSHD_PID)" 2>/dev/null; fi
+	rm -f $PAIRING; lock_password
+	ctl 'expose off' >/dev/null
+	say "stopped."
+}
+
+cmd_trust() {
+	[ "$OS" = Linux ] || die "run this on the device"
+	case $1 in
+	ssh-*|ecdsa-*|sk-*) ;;
+	*) die "usage: rssh trust 'ssh-ed25519 AAAA... comment'" ;;
+	esac
+	mkdir -p /root/.ssh && chmod 700 /root/.ssh
+	touch /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+	grep -qxF "$1" /root/.ssh/authorized_keys || printf '%s\n' "$1" >> /root/.ssh/authorized_keys
+	say "key added."
+}
+
+# ---------------------------------------------------------------- device side (macOS)
+
+start_mac() {
+	command -v dns-sd >/dev/null 2>&1 || die "dns-sd is missing"
+	mkdir -p "$STATE"
+	b=$(banner 127.0.0.1 22)
+	case $b in
+	SSH-*) ;;
+	*) err "Remote Login is off, so nothing answers on port 22. Turn it on with:"
+	   err "  sudo systemsetup -setremotelogin on      (or System Settings > General > Sharing > Remote Login)" ;;
+	esac
+	stop_mac quiet
+	name=$(clean_name "$(scutil --get LocalHostName 2>/dev/null || hostname -s)")
+	nohup dns-sd -R "$name" _rssh._tcp local. 22 user="$(id -un)" ver=1 >/dev/null 2>&1 &
+	echo $! > "$ADV_PID"
+	say "announcing '$name' (user $(id -un), port 22) as long as this stays up."
+	say "From the phone's Alpine:  rssh list ; rssh $(id -un)@$name"
+}
+
+stop_mac() {
+	[ -f "$ADV_PID" ] && { kill "$(cat "$ADV_PID")" 2>/dev/null; rm -f "$ADV_PID"; [ "$1" = quiet ] || say "stopped announcing."; }
+	return 0
+}
+
+# ---------------------------------------------------------------- status, settings
+
+cmd_status() {
+	if [ "$OS" = Darwin ]; then
+		if [ -f "$ADV_PID" ] && kill -0 "$(cat "$ADV_PID")" 2>/dev/null; then say "announcing this Mac: yes"; else say "announcing this Mac: no (rssh start)"; fi
+		case $(banner 127.0.0.1 22) in SSH-*) say "Remote Login (port 22): on" ;; *) say "Remote Login (port 22): off" ;; esac
+		if [ -f "$STATE/known_hosts" ]; then say "paired devices: $(sed -n 's/^rssh-\([^ ,]*\).*/\1/p' "$STATE/known_hosts" | tr '\n' ' ')"; else say "paired devices: none"; fi
+		return 0
+	fi
+	if sshd_running; then say "ssh server: running (pid $(cat $SSHD_PID))"; else say "ssh server: not running"; fi
+	say "name: $(cat $DIR/name 2>/dev/null || echo '-')"
+	say "boot: $([ -f $DIR/enabled ] && echo start-at-boot || echo off)"
+	say "authorized keys: $(grep -c '^[a-z]' /root/.ssh/authorized_keys 2>/dev/null || echo 0)"
+	[ -f $PAIRING ] && say "pairing window: open"
+	r=$(ctl status | sed -n 's/^ok *//p' | head -n 1)
+	if [ -n "$r" ]; then say "phone app: $r"; else say "phone app: no control port (not in the iPhone app)"; fi
+}
+
+cmd_set() {
+	case $1 in
+	background)
+		[ "$OS" = Linux ] || die "background mode is a phone setting; on the Mac use: caffeinate -i"
+		case $2 in on|off|status) ;; *) die "usage: rssh set background on|off|status" ;; esac
+		r=$(ctl "background $2" | head -n 1)
+		case $r in
+		ok*) say "background: ${r#ok }" ;;
+		err*) die "${r#err }" ;;
+		*) die "this only works inside the iPhone app" ;;
+		esac ;;
+	*) die "usage: rssh set background on|off|status" ;;
+	esac
+}
+
+# ---------------------------------------------------------------- main
+
+cmd=${1:-}
+[ $# -gt 0 ] && shift
+case $cmd in
+""|help|-h|--help) usage ;;
+start) cmd_start "$@" ;;
+boot) cmd_boot ;;
+endpair) cmd_endpair ;;
+stop) cmd_stop ;;
+status) cmd_status ;;
+list|ls) cmd_list ;;
+pair) cmd_pair "$@" ;;
+key) cmd_key ;;
+forget) cmd_forget "$@" ;;
+trust) cmd_trust "$@" ;;
+set) cmd_set "$@" ;;
+connect) [ $# -gt 0 ] || die "usage: rssh connect NAME"; cmd_connect "$@" ;;
+-*) die "unknown option $cmd (rssh help)" ;;
+*) cmd_connect "$cmd" "$@" ;;
+esac

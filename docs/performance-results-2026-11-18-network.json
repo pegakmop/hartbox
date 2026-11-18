@@ -1,0 +1,2607 @@
+{
+  "date": "2026-11-18",
+  "host": {
+    "architecture": "arm64",
+    "processor": "Apple M5",
+    "os": "macOS 26.5.1"
+  },
+  "guest": {
+    "architecture": "riscv64",
+    "distribution": "Alpine Linux 3.24.2",
+    "harts": 1,
+    "ram_mib": 512
+  },
+  "cpu_mips": "Millions of guest instructions per host user CPU second. Each reported comparison is the median of after/before ratios from the same round.",
+  "wall_seconds": "Emulator-reported elapsed time. It includes guest boot but excludes host preparation before the machine starts.",
+  "sha256": {
+    "before": "2590991ba37493e48b58a5181b4ba0eaa5fb001cfc1f5b72cf0859a02740b432",
+    "release": "0e5b415973f5e13a6611d1891a366f4f0a5f4c198a4f598937328429a5d33dba",
+    "before disk-full recovery": "f7051697bd55ad7c85e2d8dec808ac433b9cd576f644f7b0ea321d0ddd757f17"
+  },
+  "experiments": [
+    {
+      "name": "Release build with default settings",
+      "updated_binary": "release",
+      "generated_templates": true,
+      "initramfs": "full before, minimal after",
+      "pairs_per_workload": 5,
+      "summary": {
+        "boot": {
+          "paired_cpu_mips_gain_percent": 3.783318666810942,
+          "median_cpu_mips_before": 1206.0908440190135,
+          "median_cpu_mips_after": 1245.4459986750057,
+          "median_wall_seconds_before": 0.379,
+          "median_wall_seconds_after": 0.336,
+          "median_guest_instructions_before": 510952927,
+          "median_guest_instructions_after": 477501505
+        },
+        "py": {
+          "paired_cpu_mips_gain_percent": 0.5030642684211051,
+          "median_cpu_mips_before": 2042.9893885405193,
+          "median_cpu_mips_after": 2051.0026151587113,
+          "median_wall_seconds_before": 1.392,
+          "median_wall_seconds_after": 1.363,
+          "median_guest_instructions_before": 2902672682,
+          "median_guest_instructions_after": 2851412216
+        },
+        "lzma": {
+          "paired_cpu_mips_gain_percent": 0.6441670661809118,
+          "median_cpu_mips_before": 2149.377245064575,
+          "median_cpu_mips_after": 2167.0306261521782,
+          "median_wall_seconds_before": 1.538,
+          "median_wall_seconds_after": 1.511,
+          "median_guest_instructions_before": 3388402953,
+          "median_guest_instructions_after": 3354651397
+        }
+      },
+      "records": [
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 510952927,
+          "wall_seconds": 0.397,
+          "user_cpu_seconds": 0.421433,
+          "cpu_mips": 1212.4179335742574,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 477286369,
+          "wall_seconds": 0.336,
+          "user_cpu_seconds": 0.37965199999999993,
+          "cpu_mips": 1257.168061803968,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 477559843,
+          "wall_seconds": 0.333,
+          "user_cpu_seconds": 0.38001300000000005,
+          "cpu_mips": 1256.6934368034774,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 511844725,
+          "wall_seconds": 0.378,
+          "user_cpu_seconds": 0.423381,
+          "cpu_mips": 1208.9459021543244,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 511479363,
+          "wall_seconds": 0.379,
+          "user_cpu_seconds": 0.42621699999999985,
+          "cpu_mips": 1200.0444914210373,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 477501505,
+          "wall_seconds": 0.336,
+          "user_cpu_seconds": 0.3833980000000001,
+          "cpu_mips": 1245.4459986750057,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 477143977,
+          "wall_seconds": 0.337,
+          "user_cpu_seconds": 0.383626,
+          "cpu_mips": 1243.7738239848184,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 509781302,
+          "wall_seconds": 0.381,
+          "user_cpu_seconds": 0.4274460000000002,
+          "cpu_mips": 1192.6215288012984,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 510547903,
+          "wall_seconds": 0.376,
+          "user_cpu_seconds": 0.4233079999999996,
+          "cpu_mips": 1206.0908440190135,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 477644838,
+          "wall_seconds": 0.339,
+          "user_cpu_seconds": 0.386269,
+          "cpu_mips": 1236.5601122533778,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 2891867624,
+          "wall_seconds": 1.414,
+          "user_cpu_seconds": 1.4359770000000003,
+          "cpu_mips": 2013.8676482979877,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 2850692655,
+          "wall_seconds": 1.363,
+          "user_cpu_seconds": 1.3996979999999999,
+          "cpu_mips": 2036.6483734348412,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 2850838258,
+          "wall_seconds": 1.352,
+          "user_cpu_seconds": 1.3899730000000003,
+          "cpu_mips": 2051.0026151587113,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 2935317018,
+          "wall_seconds": 1.388,
+          "user_cpu_seconds": 1.4274009999999997,
+          "cpu_mips": 2056.4067266311295,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 2921785360,
+          "wall_seconds": 1.392,
+          "user_cpu_seconds": 1.4301519999999996,
+          "cpu_mips": 2042.9893885405193,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 2909160995,
+          "wall_seconds": 1.378,
+          "user_cpu_seconds": 1.4168450000000004,
+          "cpu_mips": 2053.2669381619016,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 2908903007,
+          "wall_seconds": 1.366,
+          "user_cpu_seconds": 1.4045430000000003,
+          "cpu_mips": 2071.067248920111,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 2899375322,
+          "wall_seconds": 1.403,
+          "user_cpu_seconds": 1.4407769999999989,
+          "cpu_mips": 2012.369243817747,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 2902672682,
+          "wall_seconds": 1.373,
+          "user_cpu_seconds": 1.4143600000000003,
+          "cpu_mips": 2052.2870287621254,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 2851412216,
+          "wall_seconds": 1.355,
+          "user_cpu_seconds": 1.3943329999999996,
+          "cpu_mips": 2045.0008828594036,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 3388988082,
+          "wall_seconds": 1.566,
+          "user_cpu_seconds": 1.595669000000001,
+          "cpu_mips": 2123.866592632932,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 3354317025,
+          "wall_seconds": 1.536,
+          "user_cpu_seconds": 1.569236,
+          "cpu_mips": 2137.5478417522922,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 3354897132,
+          "wall_seconds": 1.511,
+          "user_cpu_seconds": 1.5481540000000003,
+          "cpu_mips": 2167.0306261521782,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 3387146734,
+          "wall_seconds": 1.533,
+          "user_cpu_seconds": 1.5713870000000014,
+          "cpu_mips": 2155.5140356894876,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 3389337821,
+          "wall_seconds": 1.532,
+          "user_cpu_seconds": 1.5716549999999998,
+          "cpu_mips": 2156.5406027404238,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 3354315214,
+          "wall_seconds": 1.545,
+          "user_cpu_seconds": 1.5815309999999982,
+          "cpu_mips": 2120.9291591502183,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 3354651397,
+          "wall_seconds": 1.495,
+          "user_cpu_seconds": 1.5328450000000018,
+          "cpu_mips": 2188.5131223313483,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 3386873502,
+          "wall_seconds": 1.554,
+          "user_cpu_seconds": 1.590909,
+          "cpu_mips": 2128.8920371938307,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 3388402953,
+          "wall_seconds": 1.538,
+          "user_cpu_seconds": 1.5764579999999953,
+          "cpu_mips": 2149.377245064575,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 3354783160,
+          "wall_seconds": 1.49,
+          "user_cpu_seconds": 1.527505000000005,
+          "cpu_mips": 2196.250198853679,
+          "completion": "LZMA_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Release build with matched full initramfs",
+      "updated_binary": "release",
+      "generated_templates": false,
+      "initramfs": "full for both",
+      "pairs_per_workload": 5,
+      "summary": {
+        "boot": {
+          "paired_cpu_mips_gain_percent": -0.41039487839430455,
+          "median_cpu_mips_before": 1053.3312509922046,
+          "median_cpu_mips_after": 1054.2820213520208,
+          "median_wall_seconds_before": 0.439,
+          "median_wall_seconds_after": 0.439,
+          "median_guest_instructions_before": 511719040,
+          "median_guest_instructions_after": 512198455
+        },
+        "py": {
+          "paired_cpu_mips_gain_percent": 1.3996092002823035,
+          "median_cpu_mips_before": 1425.7607706284543,
+          "median_cpu_mips_after": 1444.7230328419587,
+          "median_wall_seconds_before": 1.99,
+          "median_wall_seconds_after": 2.03,
+          "median_guest_instructions_before": 2896263340,
+          "median_guest_instructions_after": 2885384503
+        },
+        "lzma": {
+          "paired_cpu_mips_gain_percent": 1.28934774104974,
+          "median_cpu_mips_before": 1354.915083806479,
+          "median_cpu_mips_after": 1376.5359235670314,
+          "median_wall_seconds_before": 2.468,
+          "median_wall_seconds_after": 2.433,
+          "median_guest_instructions_before": 3388157565,
+          "median_guest_instructions_after": 3389629771
+        }
+      },
+      "records": [
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 510898310,
+          "wall_seconds": 0.439,
+          "user_cpu_seconds": 0.485031,
+          "cpu_mips": 1053.3312509922046,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 511307037,
+          "wall_seconds": 0.44,
+          "user_cpu_seconds": 0.520699,
+          "cpu_mips": 981.9627788799287,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 511276112,
+          "wall_seconds": 0.438,
+          "user_cpu_seconds": 0.48480100000000004,
+          "cpu_mips": 1054.6102668930137,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 512116498,
+          "wall_seconds": 0.437,
+          "user_cpu_seconds": 0.48360499999999984,
+          "cpu_mips": 1058.9561687741032,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 511974073,
+          "wall_seconds": 0.438,
+          "user_cpu_seconds": 0.48465899999999995,
+          "cpu_mips": 1056.359364006446,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 513018903,
+          "wall_seconds": 0.439,
+          "user_cpu_seconds": 0.48660499999999995,
+          "cpu_mips": 1054.2820213520208,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 513146940,
+          "wall_seconds": 0.438,
+          "user_cpu_seconds": 0.4856880000000001,
+          "cpu_mips": 1056.536171369274,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 511719040,
+          "wall_seconds": 0.44,
+          "user_cpu_seconds": 0.48668699999999987,
+          "cpu_mips": 1051.433549694157,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 511692641,
+          "wall_seconds": 0.445,
+          "user_cpu_seconds": 0.4896010000000004,
+          "cpu_mips": 1045.1217236075897,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 512198455,
+          "wall_seconds": 0.447,
+          "user_cpu_seconds": 0.4935029999999996,
+          "cpu_mips": 1037.8831638308186,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 2970889485,
+          "wall_seconds": 2.166,
+          "user_cpu_seconds": 2.204022,
+          "cpu_mips": 1347.9400319053075,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 2984468389,
+          "wall_seconds": 2.03,
+          "user_cpu_seconds": 2.065772000000001,
+          "cpu_mips": 1444.7230328419587,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 2881735841,
+          "wall_seconds": 2.03,
+          "user_cpu_seconds": 2.0577289999999984,
+          "cpu_mips": 1400.4447820874384,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 2876414003,
+          "wall_seconds": 1.987,
+          "user_cpu_seconds": 2.0210370000000015,
+          "cpu_mips": 1423.2366864139537,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 2881795633,
+          "wall_seconds": 1.973,
+          "user_cpu_seconds": 2.0097439999999995,
+          "cpu_mips": 1433.9117982190771,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 2885384503,
+          "wall_seconds": 1.948,
+          "user_cpu_seconds": 1.9844720000000002,
+          "cpu_mips": 1453.9809596708847,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 2944842901,
+          "wall_seconds": 1.985,
+          "user_cpu_seconds": 2.0241919999999993,
+          "cpu_mips": 1454.8239005983628,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 2896263340,
+          "wall_seconds": 1.997,
+          "user_cpu_seconds": 2.0313809999999997,
+          "cpu_mips": 1425.7607706284543,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 2902556405,
+          "wall_seconds": 1.99,
+          "user_cpu_seconds": 2.0261010000000006,
+          "cpu_mips": 1432.5822873588234,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 2880853383,
+          "wall_seconds": 2.059,
+          "user_cpu_seconds": 2.076108999999999,
+          "cpu_mips": 1387.6214509931808,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 3389856767,
+          "wall_seconds": 2.476,
+          "user_cpu_seconds": 2.507449000000001,
+          "cpu_mips": 1351.914542229971,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 3389629771,
+          "wall_seconds": 2.417,
+          "user_cpu_seconds": 2.451086,
+          "cpu_mips": 1382.9093597695062,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 3389034008,
+          "wall_seconds": 2.417,
+          "user_cpu_seconds": 2.452054999999998,
+          "cpu_mips": 1382.1198986156521,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 3388157565,
+          "wall_seconds": 2.468,
+          "user_cpu_seconds": 2.500641999999999,
+          "cpu_mips": 1354.915083806479,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 3388098153,
+          "wall_seconds": 2.458,
+          "user_cpu_seconds": 2.4930570000000003,
+          "cpu_mips": 1359.0135135297746,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 3390436887,
+          "wall_seconds": 2.433,
+          "user_cpu_seconds": 2.463021000000005,
+          "cpu_mips": 1376.5359235670314,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 3389600658,
+          "wall_seconds": 2.473,
+          "user_cpu_seconds": 2.5004519999999957,
+          "cpu_mips": 1355.5951715929782,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 3389690452,
+          "wall_seconds": 2.485,
+          "user_cpu_seconds": 2.515416000000002,
+          "cpu_mips": 1347.566546447982,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 3388073790,
+          "wall_seconds": 2.452,
+          "user_cpu_seconds": 2.4883680000000012,
+          "cpu_mips": 1361.5646037885065,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 3390283295,
+          "wall_seconds": 2.547,
+          "user_cpu_seconds": 2.578111,
+          "cpu_mips": 1315.0261160206057,
+          "completion": "LZMA_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Release build on everyday shell and package commands",
+      "updated_binary": "release",
+      "generated_templates": true,
+      "initramfs": "full before, minimal after",
+      "pairs_per_workload": 3,
+      "summary": {
+        "apk": {
+          "paired_cpu_mips_gain_percent": -0.23435447812841792,
+          "median_cpu_mips_before": 1447.759699242918,
+          "median_cpu_mips_after": 1457.2180586739844,
+          "median_wall_seconds_before": 3.604,
+          "median_wall_seconds_after": 3.484,
+          "median_guest_instructions_before": 4938104200,
+          "median_guest_instructions_after": 4906628019
+        },
+        "shell": {
+          "paired_cpu_mips_gain_percent": 0.42750415578243217,
+          "median_cpu_mips_before": 1598.4076085955924,
+          "median_cpu_mips_after": 1600.8043822359505,
+          "median_wall_seconds_before": 4.89,
+          "median_wall_seconds_after": 4.789,
+          "median_guest_instructions_before": 7723834608,
+          "median_guest_instructions_after": 7683128469
+        },
+        "apk-local": {
+          "paired_cpu_mips_gain_percent": 1.9484274943520452,
+          "median_cpu_mips_before": 1428.979867705063,
+          "median_cpu_mips_after": 1461.4224335691945,
+          "median_wall_seconds_before": 2.924,
+          "median_wall_seconds_after": 2.834,
+          "median_guest_instructions_before": 4216678092,
+          "median_guest_instructions_after": 4180996593
+        }
+      },
+      "records": [
+        {
+          "workload": "apk",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 4938104200,
+          "wall_seconds": 3.686,
+          "user_cpu_seconds": 3.410859,
+          "cpu_mips": 1447.759699242918,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 4906628019,
+          "wall_seconds": 3.484,
+          "user_cpu_seconds": 3.356042,
+          "cpu_mips": 1462.028192436209,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 4906569781,
+          "wall_seconds": 3.478,
+          "user_cpu_seconds": 3.3670800000000005,
+          "cpu_mips": 1457.2180586739844,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 4938015782,
+          "wall_seconds": 3.604,
+          "user_cpu_seconds": 3.380718,
+          "cpu_mips": 1460.6411365869617,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 4939424629,
+          "wall_seconds": 3.507,
+          "user_cpu_seconds": 3.4154419999999988,
+          "cpu_mips": 1446.2036330876067,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 4908489165,
+          "wall_seconds": 3.556,
+          "user_cpu_seconds": 3.4036640000000027,
+          "cpu_mips": 1442.1191883217605,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 7726796686,
+          "wall_seconds": 4.89,
+          "user_cpu_seconds": 4.834059,
+          "cpu_mips": 1598.4076085955924,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 7682507602,
+          "wall_seconds": 4.852,
+          "user_cpu_seconds": 4.852533999999999,
+          "cpu_mips": 1583.1950073920145,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 7683155080,
+          "wall_seconds": 4.789,
+          "user_cpu_seconds": 4.799559000000002,
+          "cpu_mips": 1600.8043822359505,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 7723834608,
+          "wall_seconds": 4.914,
+          "user_cpu_seconds": 4.915782,
+          "cpu_mips": 1571.232127055268,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 7722354823,
+          "wall_seconds": 4.802,
+          "user_cpu_seconds": 4.810192000000001,
+          "cpu_mips": 1605.4150900837221,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 7683128469,
+          "wall_seconds": 4.759,
+          "user_cpu_seconds": 4.7653859999999995,
+          "cpu_mips": 1612.2783063113882,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 4212411548,
+          "wall_seconds": 2.895,
+          "user_cpu_seconds": 2.9203199999999967,
+          "cpu_mips": 1442.4486179596772,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 4179716500,
+          "wall_seconds": 2.814,
+          "user_cpu_seconds": 2.8422740000000033,
+          "cpu_mips": 1470.5536834239047,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 4181279309,
+          "wall_seconds": 2.86,
+          "user_cpu_seconds": 2.8820729999999983,
+          "cpu_mips": 1450.788827694511,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 4216678092,
+          "wall_seconds": 2.924,
+          "user_cpu_seconds": 2.950831000000001,
+          "cpu_mips": 1428.979867705063,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 4217671548,
+          "wall_seconds": 2.928,
+          "user_cpu_seconds": 2.954979999999999,
+          "cpu_mips": 1427.3096765460346,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 4180996593,
+          "wall_seconds": 2.834,
+          "user_cpu_seconds": 2.8609089999999924,
+          "cpu_mips": 1461.4224335691945,
+          "completion": "APK_LOCAL_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Release build on additional matched full-initramfs workloads",
+      "updated_binary": "release",
+      "generated_templates": false,
+      "initramfs": "full for both",
+      "pairs_per_workload": 3,
+      "summary": {
+        "sqlite": {
+          "paired_cpu_mips_gain_percent": 0.5703039662974252,
+          "median_cpu_mips_before": 1111.9939838186378,
+          "median_cpu_mips_after": 1122.8728505871957,
+          "median_wall_seconds_before": 0.715,
+          "median_wall_seconds_after": 0.706,
+          "median_guest_instructions_before": 842557574,
+          "median_guest_instructions_after": 843690728
+        }
+      },
+      "records": [
+        {
+          "workload": "sqlite",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 842557574,
+          "wall_seconds": 0.715,
+          "user_cpu_seconds": 0.752836,
+          "cpu_mips": 1119.1781131614323,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 843690728,
+          "wall_seconds": 0.706,
+          "user_cpu_seconds": 0.7513679999999999,
+          "cpu_mips": 1122.8728505871957,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 841243022,
+          "wall_seconds": 0.7,
+          "user_cpu_seconds": 0.7460040000000003,
+          "cpu_mips": 1127.6655647958987,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 842103036,
+          "wall_seconds": 0.714,
+          "user_cpu_seconds": 0.7572909999999999,
+          "cpu_mips": 1111.9939838186378,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 844773971,
+          "wall_seconds": 0.717,
+          "user_cpu_seconds": 0.7596949999999998,
+          "cpu_mips": 1111.9909582134937,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 844050412,
+          "wall_seconds": 0.71,
+          "user_cpu_seconds": 0.75474,
+          "cpu_mips": 1118.332686753054,
+          "completion": "SQLITE_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Matched full initramfs",
+      "updated_binary": "before disk-full recovery",
+      "generated_templates": false,
+      "initramfs": "full for both",
+      "pairs_per_workload": 7,
+      "summary": {
+        "boot": {
+          "paired_cpu_mips_gain_percent": 0.12546600896108373,
+          "median_cpu_mips_before": 1051.475651963189,
+          "median_cpu_mips_after": 1056.3596465017451,
+          "median_wall_seconds_before": 0.436,
+          "median_wall_seconds_after": 0.435,
+          "median_guest_instructions_before": 507796446,
+          "median_guest_instructions_after": 508963299
+        },
+        "py": {
+          "paired_cpu_mips_gain_percent": 1.1056148223272055,
+          "median_cpu_mips_before": 1426.219491005092,
+          "median_cpu_mips_after": 1443.5560911198745,
+          "median_wall_seconds_before": 1.994,
+          "median_wall_seconds_after": 2.0,
+          "median_guest_instructions_before": 2889647023,
+          "median_guest_instructions_after": 2889460848
+        },
+        "lzma": {
+          "paired_cpu_mips_gain_percent": 2.3421169144213216,
+          "median_cpu_mips_before": 1347.4363470367614,
+          "median_cpu_mips_after": 1370.528715652213,
+          "median_wall_seconds_before": 2.482,
+          "median_wall_seconds_after": 2.44,
+          "median_guest_instructions_before": 3386433869,
+          "median_guest_instructions_after": 3386391435
+        }
+      },
+      "records": [
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 507680244,
+          "wall_seconds": 0.439,
+          "user_cpu_seconds": 0.48384099999999997,
+          "cpu_mips": 1049.2708224396033,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 509087179,
+          "wall_seconds": 0.435,
+          "user_cpu_seconds": 0.48192599999999997,
+          "cpu_mips": 1056.3596465017451,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 508809533,
+          "wall_seconds": 0.439,
+          "user_cpu_seconds": 0.4859760000000001,
+          "cpu_mips": 1046.9848984311982,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 507796446,
+          "wall_seconds": 0.434,
+          "user_cpu_seconds": 0.481657,
+          "cpu_mips": 1054.2698351731626,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 509076985,
+          "wall_seconds": 0.438,
+          "user_cpu_seconds": 0.48442699999999994,
+          "cpu_mips": 1050.884828880306,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 508401499,
+          "wall_seconds": 0.433,
+          "user_cpu_seconds": 0.4809589999999999,
+          "cpu_mips": 1057.0578760351716,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 508694818,
+          "wall_seconds": 0.435,
+          "user_cpu_seconds": 0.4813179999999999,
+          "cpu_mips": 1056.8788576367392,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 507521157,
+          "wall_seconds": 0.434,
+          "user_cpu_seconds": 0.4808100000000004,
+          "cpu_mips": 1055.5544955387775,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 509975845,
+          "wall_seconds": 0.441,
+          "user_cpu_seconds": 0.4853689999999995,
+          "cpu_mips": 1050.6971912091635,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 509121343,
+          "wall_seconds": 0.441,
+          "user_cpu_seconds": 0.4866400000000004,
+          "cpu_mips": 1046.1970717573556,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 5,
+          "binary": "after",
+          "guest_instructions": 508963299,
+          "wall_seconds": 0.437,
+          "user_cpu_seconds": 0.48432099999999956,
+          "cpu_mips": 1050.8800960519995,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 5,
+          "binary": "before",
+          "guest_instructions": 508670048,
+          "wall_seconds": 0.434,
+          "user_cpu_seconds": 0.48073999999999995,
+          "cpu_mips": 1058.098032200358,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 6,
+          "binary": "before",
+          "guest_instructions": 507664011,
+          "wall_seconds": 0.436,
+          "user_cpu_seconds": 0.48281100000000077,
+          "cpu_mips": 1051.475651963189,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 6,
+          "binary": "after",
+          "guest_instructions": 509215907,
+          "wall_seconds": 0.434,
+          "user_cpu_seconds": 0.4816049999999992,
+          "cpu_mips": 1057.3310223108167,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 2878447182,
+          "wall_seconds": 2.03,
+          "user_cpu_seconds": 2.0538310000000006,
+          "cpu_mips": 1401.501477969706,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 2946186073,
+          "wall_seconds": 2.005,
+          "user_cpu_seconds": 2.0404940000000007,
+          "cpu_mips": 1443.8592188950317,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 2942021638,
+          "wall_seconds": 2.0,
+          "user_cpu_seconds": 2.0354519999999994,
+          "cpu_mips": 1445.3898387188697,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 2889647023,
+          "wall_seconds": 1.986,
+          "user_cpu_seconds": 2.0213199999999993,
+          "cpu_mips": 1429.5841445194235,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 2889741563,
+          "wall_seconds": 2.003,
+          "user_cpu_seconds": 2.0377560000000017,
+          "cpu_mips": 1418.0998917436618,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 2936991799,
+          "wall_seconds": 2.001,
+          "user_cpu_seconds": 2.035186999999997,
+          "cpu_mips": 1443.1066034718206,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 2882478500,
+          "wall_seconds": 2.011,
+          "user_cpu_seconds": 2.0447950000000006,
+          "cpu_mips": 1409.6662501619965,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 2929118772,
+          "wall_seconds": 1.997,
+          "user_cpu_seconds": 2.032382000000002,
+          "cpu_mips": 1441.2245197999182,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 2882673409,
+          "wall_seconds": 1.988,
+          "user_cpu_seconds": 2.0211989999999993,
+          "cpu_mips": 1426.219491005092,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 2889460848,
+          "wall_seconds": 1.965,
+          "user_cpu_seconds": 2.001626999999999,
+          "cpu_mips": 1443.5560911198745,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 5,
+          "binary": "after",
+          "guest_instructions": 2883155075,
+          "wall_seconds": 1.979,
+          "user_cpu_seconds": 2.0150560000000013,
+          "cpu_mips": 1430.8064267196537,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 5,
+          "binary": "before",
+          "guest_instructions": 2880839043,
+          "wall_seconds": 1.994,
+          "user_cpu_seconds": 2.032501,
+          "cpu_mips": 1417.3862856648043,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 6,
+          "binary": "before",
+          "guest_instructions": 2894749438,
+          "wall_seconds": 1.967,
+          "user_cpu_seconds": 2.003318,
+          "cpu_mips": 1444.977501325301,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 6,
+          "binary": "after",
+          "guest_instructions": 2886018512,
+          "wall_seconds": 1.959,
+          "user_cpu_seconds": 1.996575,
+          "cpu_mips": 1445.4846484604886,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 3385644022,
+          "wall_seconds": 2.482,
+          "user_cpu_seconds": 2.512656,
+          "cpu_mips": 1347.4363470367614,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 3386954326,
+          "wall_seconds": 2.42,
+          "user_cpu_seconds": 2.4527509999999992,
+          "cpu_mips": 1380.8798063888266,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 3386804203,
+          "wall_seconds": 2.407,
+          "user_cpu_seconds": 2.4406999999999996,
+          "cpu_mips": 1387.6364170115132,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 3386494445,
+          "wall_seconds": 2.701,
+          "user_cpu_seconds": 2.712107000000003,
+          "cpu_mips": 1248.658126320236,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 3387339158,
+          "wall_seconds": 2.473,
+          "user_cpu_seconds": 2.507649999999998,
+          "cpu_mips": 1350.802208442168,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 3386391435,
+          "wall_seconds": 2.442,
+          "user_cpu_seconds": 2.4708649999999963,
+          "cpu_mips": 1370.528715652213,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 3385485472,
+          "wall_seconds": 2.525,
+          "user_cpu_seconds": 2.553883000000006,
+          "cpu_mips": 1325.6227759846445,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 3386433869,
+          "wall_seconds": 2.75,
+          "user_cpu_seconds": 2.7502840000000006,
+          "cpu_mips": 1231.3033377643908,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 3386501020,
+          "wall_seconds": 2.45,
+          "user_cpu_seconds": 2.4833519999999965,
+          "cpu_mips": 1363.6814354147155,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 3386183573,
+          "wall_seconds": 2.409,
+          "user_cpu_seconds": 2.440652,
+          "cpu_mips": 1387.4094188765953,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 5,
+          "binary": "after",
+          "guest_instructions": 3386994146,
+          "wall_seconds": 2.442,
+          "user_cpu_seconds": 2.4743980000000008,
+          "cpu_mips": 1368.8154233878297,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 5,
+          "binary": "before",
+          "guest_instructions": 3386021992,
+          "wall_seconds": 2.451,
+          "user_cpu_seconds": 2.482351999999999,
+          "cpu_mips": 1364.0378125261855,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 6,
+          "binary": "before",
+          "guest_instructions": 3385437064,
+          "wall_seconds": 2.499,
+          "user_cpu_seconds": 2.5281949999999966,
+          "cpu_mips": 1339.0727629791234,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 6,
+          "binary": "after",
+          "guest_instructions": 3386010148,
+          "wall_seconds": 2.44,
+          "user_cpu_seconds": 2.470754999999997,
+          "cpu_mips": 1370.4354126572664,
+          "completion": "LZMA_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Default boot and interpreter settings",
+      "updated_binary": "before disk-full recovery",
+      "generated_templates": true,
+      "initramfs": "full before, minimal after",
+      "pairs_per_workload": 7,
+      "summary": {
+        "boot": {
+          "paired_cpu_mips_gain_percent": 3.8194919667607463,
+          "median_cpu_mips_before": 1183.880322652088,
+          "median_cpu_mips_after": 1245.84295213879,
+          "median_wall_seconds_before": 0.383,
+          "median_wall_seconds_after": 0.335,
+          "median_guest_instructions_before": 510213468,
+          "median_guest_instructions_after": 475871191
+        },
+        "py": {
+          "paired_cpu_mips_gain_percent": 1.2011260071834284,
+          "median_cpu_mips_before": 2001.5228610600293,
+          "median_cpu_mips_after": 2012.7452141027707,
+          "median_wall_seconds_before": 1.431,
+          "median_wall_seconds_after": 1.38,
+          "median_guest_instructions_before": 2927362578,
+          "median_guest_instructions_after": 2852637897
+        },
+        "lzma": {
+          "paired_cpu_mips_gain_percent": 1.5520759399949569,
+          "median_cpu_mips_before": 2122.4064455912685,
+          "median_cpu_mips_after": 2156.383344170858,
+          "median_wall_seconds_before": 1.558,
+          "median_wall_seconds_after": 1.521,
+          "median_guest_instructions_before": 3386609955,
+          "median_guest_instructions_after": 3352638823
+        }
+      },
+      "records": [
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 508687821,
+          "wall_seconds": 0.388,
+          "user_cpu_seconds": 0.434866,
+          "cpu_mips": 1169.7576287867987,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 475667957,
+          "wall_seconds": 0.334,
+          "user_cpu_seconds": 0.38048399999999993,
+          "cpu_mips": 1250.1654655649122,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 475722276,
+          "wall_seconds": 0.334,
+          "user_cpu_seconds": 0.3807360000000001,
+          "cpu_mips": 1249.4806795259706,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 510283960,
+          "wall_seconds": 0.375,
+          "user_cpu_seconds": 0.42150299999999996,
+          "cpu_mips": 1210.62948543664,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 510329491,
+          "wall_seconds": 0.375,
+          "user_cpu_seconds": 0.42152999999999996,
+          "cpu_mips": 1210.6599554005647,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 476277836,
+          "wall_seconds": 0.335,
+          "user_cpu_seconds": 0.3817750000000002,
+          "cpu_mips": 1247.5354226966138,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 475871191,
+          "wall_seconds": 0.346,
+          "user_cpu_seconds": 0.39086,
+          "cpu_mips": 1217.4978022821472,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 510982104,
+          "wall_seconds": 0.377,
+          "user_cpu_seconds": 0.4248339999999997,
+          "cpu_mips": 1202.780624902904,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 507819545,
+          "wall_seconds": 0.383,
+          "user_cpu_seconds": 0.42894500000000013,
+          "cpu_mips": 1183.880322652088,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 476156885,
+          "wall_seconds": 0.339,
+          "user_cpu_seconds": 0.38527500000000003,
+          "cpu_mips": 1235.8883524755045,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 5,
+          "binary": "after",
+          "guest_instructions": 476250877,
+          "wall_seconds": 0.335,
+          "user_cpu_seconds": 0.3822720000000004,
+          "cpu_mips": 1245.84295213879,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 5,
+          "binary": "before",
+          "guest_instructions": 509880168,
+          "wall_seconds": 0.388,
+          "user_cpu_seconds": 0.4324319999999995,
+          "cpu_mips": 1179.099067599069,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 6,
+          "binary": "before",
+          "guest_instructions": 510213468,
+          "wall_seconds": 0.387,
+          "user_cpu_seconds": 0.43334600000000023,
+          "cpu_mips": 1177.3812796241334,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "boot",
+          "round": 6,
+          "binary": "after",
+          "guest_instructions": 475723221,
+          "wall_seconds": 0.343,
+          "user_cpu_seconds": 0.3891869999999997,
+          "cpu_mips": 1222.3512630175221,
+          "completion": "BOOT_ONLY"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 2937870439,
+          "wall_seconds": 1.421,
+          "user_cpu_seconds": 1.4612180000000006,
+          "cpu_mips": 2010.5627216472826,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 2852637897,
+          "wall_seconds": 1.364,
+          "user_cpu_seconds": 1.401986,
+          "cpu_mips": 2034.7121133877229,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 2936241189,
+          "wall_seconds": 1.4,
+          "user_cpu_seconds": 1.4352029999999996,
+          "cpu_mips": 2045.871691321716,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 2927362578,
+          "wall_seconds": 1.416,
+          "user_cpu_seconds": 1.4547179999999997,
+          "cpu_mips": 2012.3230605519423,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 3006071222,
+          "wall_seconds": 1.444,
+          "user_cpu_seconds": 1.479940000000001,
+          "cpu_mips": 2031.211550468261,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 2902167624,
+          "wall_seconds": 1.418,
+          "user_cpu_seconds": 1.4565739999999998,
+          "cpu_mips": 1992.4615048737658,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 2863150900,
+          "wall_seconds": 1.378,
+          "user_cpu_seconds": 1.417059,
+          "cpu_mips": 2020.4881377557322,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 2874236571,
+          "wall_seconds": 1.429,
+          "user_cpu_seconds": 1.4669290000000004,
+          "cpu_mips": 1959.3562953626245,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 2896751870,
+          "wall_seconds": 1.433,
+          "user_cpu_seconds": 1.4721939999999982,
+          "cpu_mips": 1967.6427631141028,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 2842562759,
+          "wall_seconds": 1.393,
+          "user_cpu_seconds": 1.431286,
+          "cpu_mips": 1986.0200959137446,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 5,
+          "binary": "after",
+          "guest_instructions": 2842018821,
+          "wall_seconds": 1.38,
+          "user_cpu_seconds": 1.418286000000002,
+          "cpu_mips": 2003.8404249918538,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 5,
+          "binary": "before",
+          "guest_instructions": 2897528536,
+          "wall_seconds": 1.431,
+          "user_cpu_seconds": 1.4714379999999991,
+          "cpu_mips": 1969.1815326231902,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 6,
+          "binary": "before",
+          "guest_instructions": 2943135288,
+          "wall_seconds": 1.433,
+          "user_cpu_seconds": 1.470448000000001,
+          "cpu_mips": 2001.5228610600293,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 6,
+          "binary": "after",
+          "guest_instructions": 2849487680,
+          "wall_seconds": 1.378,
+          "user_cpu_seconds": 1.4157219999999988,
+          "cpu_mips": 2012.7452141027707,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 3386609955,
+          "wall_seconds": 1.541,
+          "user_cpu_seconds": 1.5797659999999993,
+          "cpu_mips": 2143.7415129835695,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 3353010144,
+          "wall_seconds": 1.536,
+          "user_cpu_seconds": 1.5691200000000016,
+          "cpu_mips": 2136.8729886815518,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 3352690778,
+          "wall_seconds": 1.509,
+          "user_cpu_seconds": 1.545973,
+          "cpu_mips": 2168.6606286138244,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 3385276345,
+          "wall_seconds": 1.603,
+          "user_cpu_seconds": 1.634402999999999,
+          "cpu_mips": 2071.261705344399,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 3387781102,
+          "wall_seconds": 1.548,
+          "user_cpu_seconds": 1.5881720000000001,
+          "cpu_mips": 2133.1323697936996,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 3352428244,
+          "wall_seconds": 1.542,
+          "user_cpu_seconds": 1.5793490000000006,
+          "cpu_mips": 2122.664619409642,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 3352708165,
+          "wall_seconds": 1.521,
+          "user_cpu_seconds": 1.5547830000000005,
+          "cpu_mips": 2156.383344170858,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 3387435326,
+          "wall_seconds": 1.553,
+          "user_cpu_seconds": 1.5906930000000017,
+          "cpu_mips": 2129.5343136607735,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 3385842257,
+          "wall_seconds": 1.571,
+          "user_cpu_seconds": 1.6067639999999983,
+          "cpu_mips": 2107.2430406705676,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 3352638823,
+          "wall_seconds": 1.497,
+          "user_cpu_seconds": 1.533566999999998,
+          "cpu_mips": 2186.1704268545195,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 5,
+          "binary": "after",
+          "guest_instructions": 3352547631,
+          "wall_seconds": 1.496,
+          "user_cpu_seconds": 1.5358739999999997,
+          "cpu_mips": 2182.827257314077,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 5,
+          "binary": "before",
+          "guest_instructions": 3385923818,
+          "wall_seconds": 1.56,
+          "user_cpu_seconds": 1.5953230000000005,
+          "cpu_mips": 2122.4064455912685,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 6,
+          "binary": "before",
+          "guest_instructions": 3387789029,
+          "wall_seconds": 1.558,
+          "user_cpu_seconds": 1.5972640000000027,
+          "cpu_mips": 2120.9950446513503,
+          "completion": "LZMA_DONE"
+        },
+        {
+          "workload": "lzma",
+          "round": 6,
+          "binary": "after",
+          "guest_instructions": 3352537762,
+          "wall_seconds": 1.521,
+          "user_cpu_seconds": 1.5564859999999996,
+          "cpu_mips": 2153.914498427869,
+          "completion": "LZMA_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Everyday shell and package commands",
+      "updated_binary": "before disk-full recovery",
+      "generated_templates": true,
+      "initramfs": "full before, minimal after",
+      "pairs_per_workload": 5,
+      "summary": {
+        "apk": {
+          "paired_cpu_mips_gain_percent": 1.398500361473487,
+          "median_cpu_mips_before": 1444.863509808002,
+          "median_cpu_mips_after": 1470.6030459659646,
+          "median_wall_seconds_before": 3.577,
+          "median_wall_seconds_after": 3.487,
+          "median_guest_instructions_before": 4939834144,
+          "median_guest_instructions_after": 4904739986
+        },
+        "shell": {
+          "paired_cpu_mips_gain_percent": 1.1814455928427003,
+          "median_cpu_mips_before": 1581.4422260032582,
+          "median_cpu_mips_after": 1600.1261054857273,
+          "median_wall_seconds_before": 4.89,
+          "median_wall_seconds_after": 4.798,
+          "median_guest_instructions_before": 7724730093,
+          "median_guest_instructions_after": 7680488665
+        },
+        "apk-local": {
+          "paired_cpu_mips_gain_percent": 3.394833865756963,
+          "median_cpu_mips_before": 1252.7192162856927,
+          "median_cpu_mips_after": 1295.2469524830046,
+          "median_wall_seconds_before": 3.345,
+          "median_wall_seconds_after": 3.2,
+          "median_guest_instructions_before": 4214548107,
+          "median_guest_instructions_after": 4178174893
+        }
+      },
+      "records": [
+        {
+          "workload": "apk",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 4937565173,
+          "wall_seconds": 3.599,
+          "user_cpu_seconds": 3.448416,
+          "cpu_mips": 1431.8357103667306,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 4903951668,
+          "wall_seconds": 3.62,
+          "user_cpu_seconds": 3.3777030000000003,
+          "cpu_mips": 1451.8599379519158,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 4904944783,
+          "wall_seconds": 3.434,
+          "user_cpu_seconds": 3.3349969999999995,
+          "cpu_mips": 1470.7493838825044,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 4936738842,
+          "wall_seconds": 3.741,
+          "user_cpu_seconds": 3.4167509999999996,
+          "cpu_mips": 1444.863509808002,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 4940095638,
+          "wall_seconds": 3.435,
+          "user_cpu_seconds": 3.3514220000000012,
+          "cpu_mips": 1474.0297217121563,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 4904739986,
+          "wall_seconds": 3.487,
+          "user_cpu_seconds": 3.389872999999998,
+          "cpu_mips": 1446.880159227205,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 4904221450,
+          "wall_seconds": 3.656,
+          "user_cpu_seconds": 3.3348370000000003,
+          "cpu_mips": 1470.6030459659646,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 4939834144,
+          "wall_seconds": 3.577,
+          "user_cpu_seconds": 3.420007000000002,
+          "cpu_mips": 1444.3929921780853,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 4940389509,
+          "wall_seconds": 3.434,
+          "user_cpu_seconds": 3.3453349999999986,
+          "cpu_mips": 1476.7996356119797,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "apk",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 4904778786,
+          "wall_seconds": 3.392,
+          "user_cpu_seconds": 3.285396000000002,
+          "cpu_mips": 1492.9033778576452,
+          "completion": "APK_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 7724730093,
+          "wall_seconds": 4.942,
+          "user_cpu_seconds": 4.884611,
+          "cpu_mips": 1581.4422260032582,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 7679763640,
+          "wall_seconds": 4.798,
+          "user_cpu_seconds": 4.7994739999999965,
+          "cpu_mips": 1600.1261054857273,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 7679915016,
+          "wall_seconds": 4.756,
+          "user_cpu_seconds": 4.763753000000001,
+          "cpu_mips": 1612.1564270859546,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 7725959131,
+          "wall_seconds": 4.862,
+          "user_cpu_seconds": 4.868607000000004,
+          "cpu_mips": 1586.8931567078619,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 7717044941,
+          "wall_seconds": 4.86,
+          "user_cpu_seconds": 4.868544,
+          "cpu_mips": 1585.0827148732762,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 7680488665,
+          "wall_seconds": 4.744,
+          "user_cpu_seconds": 4.752226,
+          "cpu_mips": 1616.1875855651645,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 7681836554,
+          "wall_seconds": 4.878,
+          "user_cpu_seconds": 4.8830719999999985,
+          "cpu_mips": 1573.1565199120557,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 7725248974,
+          "wall_seconds": 4.931,
+          "user_cpu_seconds": 4.930215000000004,
+          "cpu_mips": 1566.9192872927438,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 7716768226,
+          "wall_seconds": 4.89,
+          "user_cpu_seconds": 4.895210999999989,
+          "cpu_mips": 1576.3913396174378,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 7680887159,
+          "wall_seconds": 4.938,
+          "user_cpu_seconds": 4.943623000000002,
+          "cpu_mips": 1553.695975401036,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 4214548107,
+          "wall_seconds": 3.239,
+          "user_cpu_seconds": 3.275143,
+          "cpu_mips": 1286.8287299211058,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 4178600365,
+          "wall_seconds": 3.131,
+          "user_cpu_seconds": 3.1677080000000046,
+          "cpu_mips": 1319.1242264122811,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 4177993809,
+          "wall_seconds": 3.042,
+          "user_cpu_seconds": 3.0702289999999977,
+          "cpu_mips": 1360.8085289403505,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 4212400749,
+          "wall_seconds": 3.661,
+          "user_cpu_seconds": 3.658970999999994,
+          "cpu_mips": 1151.2528382979824,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 4211610418,
+          "wall_seconds": 3.15,
+          "user_cpu_seconds": 3.1789230000000117,
+          "cpu_mips": 1324.854492543539,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 4178174893,
+          "wall_seconds": 3.257,
+          "user_cpu_seconds": 3.288959999999989,
+          "cpu_mips": 1270.3635474435732,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 4177596417,
+          "wall_seconds": 3.206,
+          "user_cpu_seconds": 3.238666000000009,
+          "cpu_mips": 1289.9127038725167,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 4215448829,
+          "wall_seconds": 3.486,
+          "user_cpu_seconds": 3.5146019999999965,
+          "cpu_mips": 1199.4100125704144,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 4215849889,
+          "wall_seconds": 3.345,
+          "user_cpu_seconds": 3.365358999999998,
+          "cpu_mips": 1252.7192162856927,
+          "completion": "APK_LOCAL_DONE"
+        },
+        {
+          "workload": "apk-local",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 4178662251,
+          "wall_seconds": 3.2,
+          "user_cpu_seconds": 3.2261510000000015,
+          "cpu_mips": 1295.2469524830046,
+          "completion": "APK_LOCAL_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Additional matched full-initramfs workloads",
+      "updated_binary": "before disk-full recovery",
+      "generated_templates": false,
+      "initramfs": "full for both",
+      "pairs_per_workload": 3,
+      "summary": {
+        "sqlite": {
+          "paired_cpu_mips_gain_percent": 0.6944203223266721,
+          "median_cpu_mips_before": 991.78001092003,
+          "median_cpu_mips_after": 1006.0415740267882,
+          "median_wall_seconds_before": 0.797,
+          "median_wall_seconds_after": 0.785,
+          "median_guest_instructions_before": 841012589,
+          "median_guest_instructions_after": 841174499
+        },
+        "shell": {
+          "paired_cpu_mips_gain_percent": 3.5619834027430297,
+          "median_cpu_mips_before": 1156.524921424059,
+          "median_cpu_mips_after": 1182.22625154907,
+          "median_wall_seconds_before": 6.681,
+          "median_wall_seconds_after": 6.521,
+          "median_guest_instructions_before": 7724587868,
+          "median_guest_instructions_after": 7718514323
+        },
+        "gcc": {
+          "paired_cpu_mips_gain_percent": -0.06941032438032568,
+          "median_cpu_mips_before": 803.5070286465213,
+          "median_cpu_mips_after": 802.7335972476521,
+          "median_wall_seconds_before": 7.034,
+          "median_wall_seconds_after": 7.048,
+          "median_guest_instructions_before": 5653926221,
+          "median_guest_instructions_after": 5651617033
+        }
+      },
+      "records": [
+        {
+          "workload": "sqlite",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 840869380,
+          "wall_seconds": 0.793,
+          "user_cpu_seconds": 0.839355,
+          "cpu_mips": 1001.8042187155614,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 841171459,
+          "wall_seconds": 0.783,
+          "user_cpu_seconds": 0.8338660000000001,
+          "cpu_mips": 1008.7609508002483,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 841871979,
+          "wall_seconds": 0.812,
+          "user_cpu_seconds": 0.8607039999999999,
+          "cpu_mips": 978.1202120589658,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 842036626,
+          "wall_seconds": 0.808,
+          "user_cpu_seconds": 0.8595079999999999,
+          "cpu_mips": 979.672819799234,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 841012589,
+          "wall_seconds": 0.797,
+          "user_cpu_seconds": 0.8479830000000002,
+          "cpu_mips": 991.78001092003,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "sqlite",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 841174499,
+          "wall_seconds": 0.785,
+          "user_cpu_seconds": 0.8361229999999997,
+          "cpu_mips": 1006.0415740267882,
+          "completion": "SQLITE_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 7724587868,
+          "wall_seconds": 6.771,
+          "user_cpu_seconds": 6.777509,
+          "cpu_mips": 1139.7384891705788,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 7718514323,
+          "wall_seconds": 6.532,
+          "user_cpu_seconds": 6.539252999999999,
+          "cpu_mips": 1180.335784989509,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 7717703015,
+          "wall_seconds": 6.521,
+          "user_cpu_seconds": 6.528110000000002,
+          "cpu_mips": 1182.22625154907,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 7724782859,
+          "wall_seconds": 6.599,
+          "user_cpu_seconds": 6.603535000000001,
+          "cpu_mips": 1169.7950959599666,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 7723933801,
+          "wall_seconds": 6.681,
+          "user_cpu_seconds": 6.678571000000002,
+          "cpu_mips": 1156.524921424059,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "shell",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 7724216102,
+          "wall_seconds": 6.384,
+          "user_cpu_seconds": 6.393214,
+          "cpu_mips": 1208.189824711014,
+          "completion": "SHELL_DONE"
+        },
+        {
+          "workload": "gcc",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 5658620994,
+          "wall_seconds": 7.191,
+          "user_cpu_seconds": 7.146169999999998,
+          "cpu_mips": 791.8396839146006,
+          "completion": "GCC_DONE"
+        },
+        {
+          "workload": "gcc",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 5651453615,
+          "wall_seconds": 7.048,
+          "user_cpu_seconds": 7.0484909999999985,
+          "cpu_mips": 801.7962447565019,
+          "completion": "GCC_DONE"
+        },
+        {
+          "workload": "gcc",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 5654823111,
+          "wall_seconds": 7.049,
+          "user_cpu_seconds": 7.044457999999999,
+          "cpu_mips": 802.7335972476521,
+          "completion": "GCC_DONE"
+        },
+        {
+          "workload": "gcc",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 5653926221,
+          "wall_seconds": 7.034,
+          "user_cpu_seconds": 7.036561000000006,
+          "cpu_mips": 803.5070286465213,
+          "completion": "GCC_DONE"
+        },
+        {
+          "workload": "gcc",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 5639349862,
+          "wall_seconds": 7.005,
+          "user_cpu_seconds": 7.002910999999997,
+          "cpu_mips": 805.2865247037984,
+          "completion": "GCC_DONE"
+        },
+        {
+          "workload": "gcc",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 5651617033,
+          "wall_seconds": 7.023,
+          "user_cpu_seconds": 7.023019000000005,
+          "cpu_mips": 804.7275727148104,
+          "completion": "GCC_DONE"
+        }
+      ]
+    },
+    {
+      "name": "Python with default interpreter settings and matched full initramfs",
+      "updated_binary": "before disk-full recovery",
+      "generated_templates": true,
+      "initramfs": "full for both",
+      "pairs_per_workload": 5,
+      "summary": {
+        "py": {
+          "paired_cpu_mips_gain_percent": -1.5965051354863702,
+          "median_cpu_mips_before": 2015.3168965021366,
+          "median_cpu_mips_after": 2007.856095924415,
+          "median_wall_seconds_before": 1.408,
+          "median_wall_seconds_after": 1.397,
+          "median_guest_instructions_before": 2914866986,
+          "median_guest_instructions_after": 2878890330
+        }
+      },
+      "records": [
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "before",
+          "guest_instructions": 2914866986,
+          "wall_seconds": 1.463,
+          "user_cpu_seconds": 1.462667,
+          "cpu_mips": 1992.8438844931895,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 0,
+          "binary": "after",
+          "guest_instructions": 2878890330,
+          "wall_seconds": 1.401,
+          "user_cpu_seconds": 1.4761809999999995,
+          "cpu_mips": 1950.2285492090746,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "after",
+          "guest_instructions": 2894639047,
+          "wall_seconds": 1.397,
+          "user_cpu_seconds": 1.4363850000000005,
+          "cpu_mips": 2015.2250594374066,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 1,
+          "binary": "before",
+          "guest_instructions": 2881751149,
+          "wall_seconds": 1.394,
+          "user_cpu_seconds": 1.4333720000000003,
+          "cpu_mips": 2010.4698215117912,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "before",
+          "guest_instructions": 2886889056,
+          "wall_seconds": 1.394,
+          "user_cpu_seconds": 1.4324739999999991,
+          "cpu_mips": 2015.3168965021366,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 2,
+          "binary": "after",
+          "guest_instructions": 2919015769,
+          "wall_seconds": 1.392,
+          "user_cpu_seconds": 1.4303560000000015,
+          "cpu_mips": 2040.7617187609217,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "after",
+          "guest_instructions": 2875673587,
+          "wall_seconds": 1.395,
+          "user_cpu_seconds": 1.4322109999999988,
+          "cpu_mips": 2007.856095924415,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 3,
+          "binary": "before",
+          "guest_instructions": 2967031258,
+          "wall_seconds": 1.408,
+          "user_cpu_seconds": 1.44754,
+          "cpu_mips": 2049.705885847714,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "before",
+          "guest_instructions": 2974357150,
+          "wall_seconds": 1.431,
+          "user_cpu_seconds": 1.4664670000000015,
+          "cpu_mips": 2028.246902248736,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        },
+        {
+          "workload": "py",
+          "round": 4,
+          "binary": "after",
+          "guest_instructions": 2876282174,
+          "wall_seconds": 1.401,
+          "user_cpu_seconds": 1.4411200000000015,
+          "cpu_mips": 1995.8658362939916,
+          "completion": "PY_DONE 32 33bc8aab 2364"
+        }
+      ]
+    }
+  ],
+  "release_validation": {
+    "release_unit_tests_passed": 78,
+    "storage_and_network_smoke_checks_passed": 13,
+    "four_hart_checks_passed": 5,
+    "isa_reference_lines_matched_with_and_without_templates": 32233,
+    "guest_network_checks": [
+      "IPv6 to IPv4 fallback",
+      "IPv6 loopback",
+      "parallel connections",
+      "2 MiB checksum-verified upload",
+      "DNS over UDP and TCP",
+      "CLI resolver override",
+      "public HTTPS with certificate validation",
+      "Alpine apk update"
+    ],
+    "disk_full_recovery": "Booted to a shell on the memory root after provisioning an 8 MiB disk failed.",
+    "ios": "Unsigned ARM64 release app built. Device runtime and NAT64 were not exercised."
+  }
+}

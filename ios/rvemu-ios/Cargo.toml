@@ -1,0 +1,21 @@
+[package]
+name = "rvemu-ios"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "C ABI around rvemu for the iOS app"
+
+[lib]
+name = "rvemu_ios"
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+rvemu = { path = "../.." }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = false

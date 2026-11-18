@@ -1,0 +1,5 @@
+# Every iOS device this runs on is at least an A14, so let LLVM use the
+# features that come with it. Functions start on their own 64-byte cache line (see
+# the .cargo/config.toml at the top of the repository).
+[target.aarch64-apple-ios]
+rustflags = ["-C", "target-cpu=apple-a14", "-C", "llvm-args=-align-all-functions=6"]

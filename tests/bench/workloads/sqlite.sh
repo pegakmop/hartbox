@@ -1,0 +1,1 @@
+sqlite3 :memory: "create table t(a integer primary key, b text); with recursive r(i) as (select 1 union all select i+1 from r where i<30000) insert into t select i, hex(randomblob(8)) from r; select count(*), max(b) from t where a%7=0; create index ib on t(b); select count(*) from t where b like 'A%';"; echo SQLITE_DONE

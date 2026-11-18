@@ -1,0 +1,314 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1B2C3D4E5F600000000001 /* RvemuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000002 /* RvemuApp.swift */; };
+		A1B2C3D4E5F600000000003 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000004 /* ContentView.swift */; };
+		A1B2C3D4E5F600000000005 /* Terminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000006 /* Terminal.swift */; };
+		A1B2C3D4E5F600000000007 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000008 /* TerminalView.swift */; };
+		A1B2C3D4E5F600000000009 /* Rvemu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60000000000A /* Rvemu.swift */; };
+		A1B2C3D4E5F60000000000B /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60000000000C /* Palette.swift */; };
+		A1B2C3D4E5F60000000000D /* Rssh.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60000000000E /* Rssh.swift */; };
+		A1B2C3D4E5F60000000000F /* vmlinuz-lts in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000010 /* vmlinuz-lts */; };
+		A1B2C3D4E5F600000000011 /* alpine-minirootfs-3.24.2-riscv64.tar.gz in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000012 /* alpine-minirootfs-3.24.2-riscv64.tar.gz */; };
+		A1B2C3D4E5F600000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000014 /* Assets.xcassets */; };
+		A1B2C3D4E5F600000000015 /* Modules in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000016 /* Modules */; };
+		A1B2C3D4E5F600000000017 /* librvemu_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600000000018 /* librvemu_ios.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A1B2C3D4E5F600000000002 /* RvemuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RvemuApp.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000006 /* Terminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terminal.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000008 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60000000000A /* Rvemu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rvemu.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60000000000C /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60000000000E /* Rssh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rssh.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000010 /* vmlinuz-lts */ = {isa = PBXFileReference; lastKnownFileType = file; path = vmlinuz-lts; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000012 /* alpine-minirootfs-3.24.2-riscv64.tar.gz */ = {isa = PBXFileReference; lastKnownFileType = file; path = alpine-minirootfs-3.24.2-riscv64.tar.gz; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000016 /* Modules */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Modules; sourceTree = "<group>"; };
+		A1B2C3D4E5F600000000018 /* librvemu_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librvemu_ios.a; path = "rvemu-ios/target/aarch64-apple-ios/release/librvemu_ios.a"; sourceTree = SOURCE_ROOT; };
+		A1B2C3D4E5F600000000019 /* rvemu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rvemu.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1B2C3D4E5F60000000001A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D4E5F600000000017 /* librvemu_ios.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A1B2C3D4E5F60000000001B = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F60000000001C /* RvemuApp */,
+				A1B2C3D4E5F60000000001D /* Resources */,
+				A1B2C3D4E5F60000000001E /* Frameworks */,
+				A1B2C3D4E5F60000000001F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60000000001C /* RvemuApp */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F600000000002 /* RvemuApp.swift */,
+				A1B2C3D4E5F600000000004 /* ContentView.swift */,
+				A1B2C3D4E5F600000000006 /* Terminal.swift */,
+				A1B2C3D4E5F600000000008 /* TerminalView.swift */,
+				A1B2C3D4E5F60000000000A /* Rvemu.swift */,
+				A1B2C3D4E5F60000000000C /* Palette.swift */,
+				A1B2C3D4E5F60000000000E /* Rssh.swift */,
+				A1B2C3D4E5F600000000014 /* Assets.xcassets */,
+				A1B2C3D4E5F600000000016 /* Modules */,
+			);
+			path = RvemuApp;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60000000001D /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F600000000010 /* vmlinuz-lts */,
+				A1B2C3D4E5F600000000012 /* alpine-minirootfs-3.24.2-riscv64.tar.gz */,
+			);
+			name = Resources;
+			path = RvemuApp/Resources;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60000000001E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F600000000018 /* librvemu_ios.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60000000001F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F600000000019 /* rvemu.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A1B2C3D4E5F600000000020 /* rvemu */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1B2C3D4E5F600000000021 /* Build configuration list for PBXNativeTarget "rvemu" */;
+			buildPhases = (
+				A1B2C3D4E5F600000000022 /* Build rust library */,
+				A1B2C3D4E5F600000000023 /* Sources */,
+				A1B2C3D4E5F60000000001A /* Frameworks */,
+				A1B2C3D4E5F600000000024 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = rvemu;
+			productName = rvemu;
+			productReference = A1B2C3D4E5F600000000019 /* rvemu.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1B2C3D4E5F600000000025 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A1B2C3D4E5F600000000020 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A1B2C3D4E5F600000000026 /* Build configuration list for PBXProject "rvemu" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A1B2C3D4E5F60000000001B;
+			productRefGroup = A1B2C3D4E5F60000000001F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A1B2C3D4E5F600000000020 /* rvemu */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1B2C3D4E5F600000000024 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D4E5F60000000000F /* vmlinuz-lts in Resources */,
+				A1B2C3D4E5F600000000011 /* alpine-minirootfs-3.24.2-riscv64.tar.gz in Resources */,
+				A1B2C3D4E5F600000000015 /* Modules in Resources */,
+				A1B2C3D4E5F600000000013 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A1B2C3D4E5F600000000022 /* Build rust library */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputFileListPaths = ();
+			inputPaths = ();
+			name = "Build rust library";
+			outputFileListPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "export PATH=\"$HOME/.cargo/bin:$PATH\"\ncd \"$SRCROOT/rvemu-ios\"\ncargo build --release --target aarch64-apple-ios 2>&1\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A1B2C3D4E5F600000000023 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D4E5F600000000001 /* RvemuApp.swift in Sources */,
+				A1B2C3D4E5F600000000003 /* ContentView.swift in Sources */,
+				A1B2C3D4E5F600000000005 /* Terminal.swift in Sources */,
+				A1B2C3D4E5F600000000007 /* TerminalView.swift in Sources */,
+				A1B2C3D4E5F600000000009 /* Rvemu.swift in Sources */,
+				A1B2C3D4E5F60000000000B /* Palette.swift in Sources */,
+				A1B2C3D4E5F60000000000D /* Rssh.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A1B2C3D4E5F600000000027 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				ENABLE_NS_ASSERTIONS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A1B2C3D4E5F600000000028 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A1B2C3D4E5F600000000029 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 8SPG7WLCWL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RvemuApp/Info.plist;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/include";
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/target/aarch64-apple-ios/release";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				OTHER_LDFLAGS = "$(inherited) -lresolv";
+				MARKETING_VERSION = 1.0;
+				CURRENT_PROJECT_VERSION = 1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.u6170252806.rvemu;
+				PRODUCT_NAME = rvemu;
+				SWIFT_OBJC_BRIDGING_HEADER = RvemuApp/Rvemu-Bridging-Header.h;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
+		A1B2C3D4E5F60000000002A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 8SPG7WLCWL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RvemuApp/Info.plist;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/include";
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/target/aarch64-apple-ios/release";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				OTHER_LDFLAGS = "$(inherited) -lresolv";
+				MARKETING_VERSION = 1.0;
+				CURRENT_PROJECT_VERSION = 1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.u6170252806.rvemu;
+				PRODUCT_NAME = rvemu;
+				SWIFT_OBJC_BRIDGING_HEADER = RvemuApp/Rvemu-Bridging-Header.h;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1B2C3D4E5F600000000026 /* Build configuration list for PBXProject "rvemu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D4E5F600000000028 /* Debug */,
+				A1B2C3D4E5F600000000027 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1B2C3D4E5F600000000021 /* Build configuration list for PBXNativeTarget "rvemu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D4E5F60000000002A /* Debug */,
+				A1B2C3D4E5F600000000029 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A1B2C3D4E5F600000000025 /* Project object */;
+}
