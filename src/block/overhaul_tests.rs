@@ -91,6 +91,127 @@ fn decode_sequence(code: &[u32]) -> Vec<DInsn> {
 }
 
 #[test]
+fn fused_ram_window_preserves_order_and_second_access_faults() {
+    let mut code = [i_type(3, 3, 6, 5, 0), addi(5, 5, 8), sd(5, 6, 0), WFI];
+    for reverse in [false, true] {
+        if reverse {
+            code[..3].copy_from_slice(&[sd(5, 6, 0), addi(5, 5, 8), i_type(3, 3, 6, 5, 0)]);
+        }
+        let ops = decode_sequence(&code);
+        let step = memory_with_gap(&ops[0], &ops[1], &ops[2]).unwrap();
+        for offset in [0x3008, 0x3ff8, MEMORY_SIZE - 8] {
+            for cached in [false, true] {
+                run_case(&code, |hart, bus| {
+                    let base = RAM_BASE + offset;
+                    hart.x[5] = base;
+                    hart.x[6] = u64::MAX - 42;
+                    bus.write::<8>(base, 0x0102_0304_0506_0708).unwrap();
+                    if cached {
+                        for address in [base, base + 8] {
+                            hart.ftlb_fill(bus, address, address, false);
+                            hart.ftlb_fill(bus, address, address, true);
+                        }
+                    }
+                }, 128, step);
+            }
+        }
+    }
+}
+
+#[test]
+fn backward_streams_keep_precise_overlap_and_page_state() {
+    let load = |off| i_type(3, 2, 9, 5, off);
+    let store = |off: i32| {
+        let off = off as u32;
+        (off >> 5) << 25 | 9 << 20 | 6 << 15 | 2 << 12 | (off & 31) << 7 | 0x23
+    };
+    for compare in [branch(1, 5, 8, -24), branch(6, 8, 5, -24)] {
+        let code = [load(0), store(0), load(-4), store(-4), addi(5, 5, -8), addi(6, 6, -8), compare, WFI];
+        let ops = decode_sequence(&code[..7]);
+        let step = bulk::plan(&ops).unwrap().step;
+        let source = RAM_BASE + 0x4008;
+        for dest in [RAM_BASE + 0x600c, source + 4, source - 4, source] {
+            for budget in [1, 18, 65536] {
+                run_case(&code, |hart, bus| {
+                    hart.x[5] = source;
+                    hart.x[6] = dest;
+                    hart.x[8] = source - 8 * 16;
+                    for i in 0..32 {
+                        bus.write::<4>(source - i * 4, 0x8765_4321 + i).unwrap();
+                    }
+                    for (address, store) in [(source, false), (dest, true)] {
+                        for va in [address, address - 4096] {
+                            hart.ftlb_fill(bus, va, va, store);
+                        }
+                    }
+                }, budget, step);
+            }
+        }
+    }
+}
+
+#[test]
+fn sentinel_copy_stores_the_marker_and_retains_precise_faults() {
+    let code = [i_type(3, 0, 9, 5, 0), 9 << 20 | 6 << 15 | 0x23, addi(5, 5, 1),
+        addi(6, 6, 1), branch(1, 8, 9, -16), WFI];
+    let ops = decode_sequence(&code[..5]);
+    let step = bulk::plan(&ops).unwrap().step;
+    for (offset, marker) in [(0x3ff9, Some(0)), (0x3ff9, Some(23)), (MEMORY_SIZE - 7, None)] {
+        for budget in [1, 20, 65536] {
+            let (hart, bus) = run_case(&code, |hart, bus| {
+                let source = RAM_BASE + offset;
+                let dest = RAM_BASE + 0x5ffb;
+                hart.x[5] = source;
+                hart.x[6] = dest;
+                hart.x[8] = (-119i64) as u64;
+                for i in 0..marker.map_or(7, |pos| pos + 1) {
+                    let value = if marker == Some(i) { 0x89 } else { 0xa0 + i };
+                    bus.write::<1>(source + i, value).unwrap();
+                }
+                for (address, store) in [(source, false), (dest, true)] {
+                    for va in [address, address + 4096] {
+                        hart.ftlb_fill(bus, va, va, store);
+                    }
+                }
+            }, budget, step);
+            if let Some(marker) = marker {
+                assert_eq!(hart.x[9], (-119i64) as u64);
+                assert_eq!(bus.ram[0x5ffb + marker as usize], 0x89);
+            } else {
+                assert_eq!(hart.mcause, EXC_LOAD_ACCESS);
+            }
+        }
+    }
+}
+
+#[test]
+fn ram_reductions_match_precise_steps_with_word_overflow_and_page_faults() {
+    for (op, f3) in [(0x3bu32, 0u32), (0x33, 0), (0x33, 4), (0x33, 6), (0x33, 7)] {
+        let reduce = |a: u32, b: u32| b << 20 | a << 15 | f3 << 12 | 9 << 7 | op;
+        let code = [i_type(3, 2, 6, 5, 0), addi(5, 5, 8), i_type(3, 2, 7, 5, -4),
+            reduce(9, 7), reduce(6, 9), branch(6, 5, 8, -20), WFI];
+        let ops = decode_sequence(&code[..6]);
+        let step = bulk::plan(&ops).unwrap().step;
+        for (offset, valid_words) in [(0x3ff8, 40), (MEMORY_SIZE - 8, 2)] {
+            for budget in [1, 19, 65536] {
+                run_case(&code, |hart, bus| {
+                    let base = RAM_BASE + offset;
+                    hart.x[5] = base;
+                    hart.x[8] = base + 160;
+                    hart.x[9] = 0xabcdef00_7ffffffe;
+                    for i in 0..valid_words {
+                        bus.write::<4>(base + i * 4, (0x7fffffed + i * 123) & 0xffffffff).unwrap();
+                    }
+                    for va in [base, base + 4096] {
+                        hart.ftlb_fill(bus, va, va, false);
+                    }
+                }, budget, step);
+            }
+        }
+    }
+}
+
+#[test]
 fn sequential_scans_match_at_vector_lanes_pages_and_faults() {
     for leading in [false, true] {
         for (width, f3, needle) in [

@@ -1,4 +1,4 @@
-//! Page-bounded fast paths for regular RAM copy and fill loops.
+//! Page-bounded fast paths for regular RAM copy, fill and scan loops.
 
 use super::{extend, finish_direct_to, go_tlb, host_read, host_write, pc_of, tlb_entry, Chain, STEPS};
 use crate::bus::Bus;
@@ -6,6 +6,7 @@ use crate::hart::{FastTlb, Hart, FTLB_SETS};
 use crate::insn::{DInsn, Op, Step};
 
 mod compare;
+mod reduce;
 mod scan;
 
 #[derive(Clone, Copy)]
@@ -25,21 +26,17 @@ pub(super) fn plan(ops: &[DInsn]) -> Option<Plan> {
     if let Some((step, data)) = compare::plan(ops) {
         return Some(Plan { len: ops.len(), data, step });
     }
+    if let Some(plan) = reduce::plan(ops) {
+        return Some(plan);
+    }
     let (branch, body) = ops.split_last()?;
     let first = body.first()?;
     debug_assert_eq!(branch.off.wrapping_add(branch.imm), first.off);
-    let (width, store, step) = match first.op {
-        Op::Lb => (1, Op::Sb, step_bulk::<1, true, true> as Step),
-        Op::Lbu => (1, Op::Sb, step_bulk::<1, true, false> as Step),
-        Op::Lh => (2, Op::Sh, step_bulk::<2, true, true> as Step),
-        Op::Lhu => (2, Op::Sh, step_bulk::<2, true, false> as Step),
-        Op::Lw => (4, Op::Sw, step_bulk::<4, true, true> as Step),
-        Op::Lwu => (4, Op::Sw, step_bulk::<4, true, false> as Step),
-        Op::Ld => (8, Op::Sd, step_bulk::<8, true, false> as Step),
-        Op::Sb => (1, Op::Sb, step_bulk::<1, false, false> as Step),
-        Op::Sh => (2, Op::Sh, step_bulk::<2, false, false> as Step),
-        Op::Sw => (4, Op::Sw, step_bulk::<4, false, false> as Step),
-        Op::Sd => (8, Op::Sd, step_bulk::<8, false, false> as Step),
+    let (width, store) = match first.op {
+        Op::Lb | Op::Lbu | Op::Sb => (1, Op::Sb),
+        Op::Lh | Op::Lhu | Op::Sh => (2, Op::Sh),
+        Op::Lw | Op::Lwu | Op::Sw => (4, Op::Sw),
+        Op::Ld | Op::Sd => (8, Op::Sd),
         _ => return None,
     };
     let copy = first.op != store;
@@ -49,14 +46,14 @@ pub(super) fn plan(ops: &[DInsn]) -> Option<Plan> {
         return None;
     }
     let is_cursor = |r: u8| r == dst || (copy && r == src);
-    let bound = if is_cursor(branch.rs1) && matches!(branch.op, Op::Bne | Op::Bltu) {
-        branch.rs2
-    } else if branch.op == Op::Bne && is_cursor(branch.rs2) {
-        branch.rs1
-    } else {
-        return None;
-    };
-    if is_cursor(bound) {
+    let mut operands = [branch.rs1, branch.rs2];
+    let search = copy && branch.op == Op::Bne && operands.contains(&first.rd);
+    let is_subject = |r| if search { r == first.rd } else { is_cursor(r) };
+    if !is_subject(operands[0]) {
+        operands.swap(0, 1);
+    }
+    let [subject, bound] = operands;
+    if !is_subject(subject) || is_subject(bound) || (search && is_cursor(bound)) {
         return None;
     }
 
@@ -78,7 +75,7 @@ pub(super) fn plan(ops: &[DInsn]) -> Option<Plan> {
                 return None;
             }
             dest.access(d.imm, width)?;
-        } else if d.op == Op::Addi && d.rd == d.rs1 && d.imm > 0 {
+        } else if d.op == Op::Addi && d.rd == d.rs1 && d.imm != 0 {
             if copy && d.rd == src && source.advance == 0 {
                 source.advance = d.imm;
             } else if d.rd == dst && dest.advance == 0 {
@@ -90,12 +87,15 @@ pub(super) fn plan(ops: &[DInsn]) -> Option<Plan> {
             return None;
         }
     }
-    let stride = dest.lanes * width;
-    if stride != dest.advance as usize
-        || (copy && (source.lanes != dest.lanes || source.advance != dest.advance))
+    let backward = dest.advance < 0;
+    if !dest.valid(width)
+        || (copy && (source.lanes != dest.lanes || source.advance != dest.advance || !source.valid(width)))
+        || (search && (backward || source.lanes != 1))
+        || !(branch.op == Op::Bne || (branch.op == Op::Bltu && (branch.rs1 == subject) != backward))
     {
         return None;
     }
+    let step = bulk_step(first.op, backward, search);
     let len = ops.len();
     // The memory instruction's link field is otherwise unused. Its layout
     // is [length, lanes, destination register, padding, two i16 offsets].
@@ -107,11 +107,49 @@ pub(super) fn plan(ops: &[DInsn]) -> Option<Plan> {
     Some(Plan { len, data, step })
 }
 
+fn bulk_step(op: Op, backward: bool, search: bool) -> Step {
+    macro_rules! copy {
+        ($w:literal, $signed:literal) => {
+            if search {
+                step_bulk::<$w, true, $signed, false, true> as Step
+            } else if backward {
+                step_bulk::<$w, true, $signed, true, false> as Step
+            } else {
+                step_bulk::<$w, true, $signed, false, false> as Step
+            }
+        };
+    }
+    macro_rules! fill {
+        ($w:literal) => {
+            if backward {
+                step_bulk::<$w, false, false, true, false> as Step
+            } else {
+                step_bulk::<$w, false, false, false, false> as Step
+            }
+        };
+    }
+    match op {
+        Op::Lb => copy!(1, true),
+        Op::Lbu => copy!(1, false),
+        Op::Lh => copy!(2, true),
+        Op::Lhu => copy!(2, false),
+        Op::Lw => copy!(4, true),
+        Op::Lwu => copy!(4, false),
+        Op::Ld => copy!(8, false),
+        Op::Sb => fill!(1),
+        Op::Sh => fill!(2),
+        Op::Sw => fill!(4),
+        Op::Sd => fill!(8),
+        _ => unreachable!(),
+    }
+}
+
 #[derive(Default)]
 struct Stream {
     start: i16,
     advance: i32,
     lanes: usize,
+    direction: i32,
 }
 
 impl Stream {
@@ -119,11 +157,23 @@ impl Stream {
         let off = displacement.checked_add(self.advance)?;
         if self.lanes == 0 {
             self.start = i16::try_from(off).ok()?;
-        } else if i64::from(off) != i64::from(self.start) + (self.lanes * width) as i64 {
-            return None;
+        } else {
+            if self.lanes == 1 {
+                self.direction = (off - i32::from(self.start)).signum();
+            }
+            if i64::from(off) != i64::from(self.start) + (self.lanes * width) as i64 * i64::from(self.direction)
+                || self.direction == 0
+            {
+                return None;
+            }
         }
         self.lanes += 1;
         Some(())
+    }
+
+    fn valid(&self, width: usize) -> bool {
+        self.lanes != 0 && (self.lanes * width) == self.advance.unsigned_abs() as usize
+            && (self.lanes == 1 || self.direction == self.advance.signum())
     }
 }
 
@@ -143,7 +193,7 @@ fn iterations_to_bound(op: Op, ptr: u64, bound: u64, stride: u64) -> u64 {
 }
 
 #[inline(never)]
-unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool>(
+unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool, const BACKWARD: bool, const SEARCH: bool>(
     chain: Chain,
     tlb: *mut FastTlb,
     h: &mut Hart,
@@ -171,7 +221,11 @@ unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool>(
     let src = if COPY { h.rx_u(first.rs1) } else { 0 };
     let src_va = src.wrapping_add((data >> 24) as i16 as i64 as u64);
     let mut src_host = 0;
-    let mut room = 4096 - (dst_va & 0xfff);
+    let room_at = |va: u64| {
+        let off = va & 0xfff;
+        if BACKWARD { off + W as u64 } else { 4096 - off }
+    };
+    let mut room = room_at(dst_va);
     let value = h.rx_u(first.rs2);
     if COPY {
         let read = tlb_entry(tlb, src_va);
@@ -179,67 +233,83 @@ unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool>(
             return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
         }
         src_host = src_va.wrapping_add(read.addend) as usize;
-        room = room.min(4096 - (src_va & 0xfff));
+        room = room.min(room_at(src_va));
     }
 
     let branch = &*d.add(len - 1);
     let k = u64::from(branch.index) + 1;
-    let branch_ptr = |r| r == dst_reg || (COPY && r == first.rs1);
-    let (cursor_reg, bound_reg) = if branch_ptr(branch.rs1) {
+    let is_subject = |r| {
+        if SEARCH { r == first.rd } else { r == dst_reg || (COPY && r == first.rs1) }
+    };
+    let (subject, bound_reg) = if is_subject(branch.rs1) {
         (branch.rs1, branch.rs2)
     } else {
         (branch.rs2, branch.rs1)
     };
     let left = chain.left(h);
     let bound = h.rx_u(bound_reg);
-    let cursor = h.rx_u(cursor_reg);
     // The scalar interpreter completes the current block even at a small
     // budget. A subsequent iteration is allowed only if the branch can chain.
     let budget = 1 + left.saturating_sub(k).div_ceil(len as u64);
-    let count = (room / stride as u64).min(budget).min(iterations_to_bound(
-        branch.op,
-        cursor,
-        bound,
-        stride as u64,
-    ));
-    let bytes = count * stride as u64;
-    let dst_host = dst_va.wrapping_add(write.addend) as usize;
-    if count == 0
-        || dst.checked_add(bytes).is_none()
-        || (COPY && (src.checked_add(bytes).is_none()
-            || (dst_host > src_host && dst_host - src_host < bytes as usize)))
-    {
+    let mut count = (room / stride as u64).min(budget);
+    if count == 0 {
         return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
     }
+    if SEARCH {
+        let raw = bound & (u64::MAX >> (64 - W * 8));
+        if extend::<W, SIGNED>(raw) == bound {
+            count = count.min(scan::first_stop::<W, false>(src_host, 0, Some(raw), count as usize) as u64 + 1);
+        }
+    } else {
+        let cursor = h.rx_u(subject);
+        let (start, stop) = if BACKWARD { (bound, cursor) } else { (cursor, bound) };
+        count = count.min(iterations_to_bound(branch.op, start, stop, stride as u64));
+    }
+    let bytes = count * stride as u64;
+    let advance = if BACKWARD { -(bytes as i64) } else { bytes as i64 };
+    let dst_host = dst_va.wrapping_add(write.addend) as usize;
+    let Some(dst_end) = dst.checked_add_signed(advance) else {
+        return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+    };
+    let low = |host| if BACKWARD { host - (bytes as usize - W) } else { host };
 
     if COPY {
-        // Ascending guest loads still see the original data if the destination
-        // is below the source. Read the final temporaries before the host copy
-        // because it can overwrite source bytes through a virtual alias.
-        let mut at = src_host + (bytes as usize - stride);
-        for offset in 0..len - 1 {
-            let insn = &*d.add(offset);
+        let Some(src_end) = src.checked_add_signed(advance) else {
+            return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        };
+        let distance = dst_host.abs_diff(src_host);
+        let overwrites_future = distance != 0 && distance < bytes as usize
+            && (dst_host < src_host) == BACKWARD;
+        if overwrites_future {
+            return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        }
+        // Read the final iteration's temporaries before the host copy because
+        // it can overwrite source bytes through a virtual alias.
+        let mut offset = bytes as usize - stride;
+        for index in 0..len - 1 {
+            let insn = &*d.add(index);
             if insn.op == first.op {
+                let at = if BACKWARD { src_host - offset } else { src_host + offset };
                 h.set_x(insn.rd, extend::<W, SIGNED>(host_read::<W>(at)));
-                at += W;
+                offset += W;
             }
         }
-        if dst_host.abs_diff(src_host) >= bytes as usize {
-            std::ptr::copy_nonoverlapping(src_host as *const u8, dst_host as *mut u8, bytes as usize);
+        if distance >= bytes as usize {
+            std::ptr::copy_nonoverlapping(low(src_host) as *const u8, low(dst_host) as *mut u8, bytes as usize);
         } else if dst_host != src_host {
-            std::ptr::copy(src_host as *const u8, dst_host as *mut u8, bytes as usize);
+            std::ptr::copy(low(src_host) as *const u8, low(dst_host) as *mut u8, bytes as usize);
         }
-        h.set_x(first.rs1, src + bytes);
+        h.set_x(first.rs1, src_end);
     } else {
-        fill::<W>(dst_host, value, bytes as usize);
+        fill::<W>(low(dst_host), value, bytes as usize);
     }
-    h.set_x(dst_reg, dst + bytes);
+    h.set_x(dst_reg, dst_end);
 
     let remaining = left - (count - 1) * len as u64;
     let state = Chain::enter(h, chain.pc(h), remaining);
-    let target = h.rx_u(cursor_reg);
+    let target = h.rx_u(subject);
     let taken = if branch.op == Op::Bltu {
-        target < bound
+        if BACKWARD { target > bound } else { target < bound }
     } else {
         target != bound
     };
@@ -374,9 +444,9 @@ mod tests {
                         let ops = unsafe { super::super::Block::ops_ptr(block) };
                         let step = unsafe { (*ops).step.unwrap() };
                         let expected = if copy {
-                            step_bulk::<4, true, true> as Step
+                            step_bulk::<4, true, true, false, false> as Step
                         } else {
-                            step_bulk::<4, false, false> as Step
+                            step_bulk::<4, false, false, false, false> as Step
                         };
                         assert!(std::ptr::fn_addr_eq(step, expected), "bulk plan missing");
                     }

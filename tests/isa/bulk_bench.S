@@ -1,5 +1,7 @@
 /* Build with -DCOPY for RAM copies or without it for fills. Use -DWORD_FILL
- * to fill with a value whose bytes are different.
+ * to fill with a value whose bytes are different. With -DCOPY, use -DREVERSE
+ * for a descending copy or -DSENTINEL for a copy that includes its marker.
+ * Use -DREDUCE to sum a RAM stream.
  * The working sets and iteration counts are identical across emulator builds.
  */
 .section .text.init, "ax"
@@ -10,14 +12,67 @@ _start:
     li      t0, (8 << 20)
     add     s2, s0, t0
     add     s3, s1, t0
+#if defined(SENTINEL) || defined(REDUCE)
+    li      s4, 0x123456789abcdef0
+    sd      s4, -8(s2)
+#else
 #ifdef WORD_FILL
     li      s4, 0x123456789abcdef0
 #else
     li      s4, 0x7575757575757575
 #endif
+#endif
+#ifdef REVERSE
+    sd      s4, 0(s0)
+    addi    s6, s0, -8
+#endif
     li      s5, 192
 1:
-#ifdef COPY
+#if defined(REDUCE)
+    mv      a0, s0
+    li      t4, 0
+2:
+    ld      t0, 0(a0)
+    ld      t1, 8(a0)
+    ld      t2, 16(a0)
+    ld      t3, 24(a0)
+    add     t4, t4, t0
+    add     t4, t4, t1
+    add     t4, t4, t2
+    add     t4, t4, t3
+    addi    a0, a0, 32
+    bltu    a0, s2, 2b
+    bne     t4, s4, 3f
+#elif defined(COPY)
+#if defined(REVERSE)
+    addi    a0, s2, -8
+    addi    a1, s3, -8
+2:
+    .set    offset, 0
+    .rept   8
+    ld      t0, offset(a0)
+    sd      t0, offset(a1)
+    .set    offset, offset - 8
+    .endr
+    addi    a0, a0, -64
+    addi    a1, a1, -64
+    bne     a0, s6, 2b
+    ld      t0, 0(s1)
+    bne     t0, s4, 3f
+#elif defined(SENTINEL)
+    mv      a0, s0
+    mv      a1, s1
+2:
+    ld      t0, 0(a0)
+    sd      t0, 0(a1)
+    addi    a0, a0, 8
+    addi    a1, a1, 8
+    bne     t0, s4, 2b
+    bne     a0, s2, 3f
+    bne     a1, s3, 3f
+    ld      t0, -8(a1)
+    bne     t0, s4, 3f
+#else
     mv      a0, s0
     mv      a1, s1
 2:
@@ -42,6 +97,7 @@ _start:
     bltu    a0, s2, 2b
     ld      t0, -8(a1)
     bnez    t0, 3f
+#endif
 #else
     mv      a1, s1
 2:

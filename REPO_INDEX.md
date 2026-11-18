@@ -11,15 +11,17 @@ machine. For installation and everyday use, start with the [README](README.md).
 | CLI and machine | [Arguments and boot setup](src/main.rs) and [machine scheduling](src/machine.rs) |
 | Boot and storage | [Initramfs and guest init](src/initramfs.rs), [root disk format and warm-boot probe](src/ext2.rs), and [virtio block device](src/devices/blk.rs) |
 | RISC-V interpreter | [Harts](src/hart.rs), [decoded blocks](src/block.rs), [instruction decoder](src/insn.rs), and [scalar execution](src/exec.rs) |
-| Hot paths | [Instruction fusion](src/block/fusion.rs), [bulk RAM operations](src/block/bulk.rs), [native floating point](src/fastfp.rs), and [generated templates](src/spec_index.rs) |
+| Hot paths | [Instruction fusion](src/block/fusion.rs), [paired RAM accesses](src/block/linear_memory.rs), [bulk RAM operations](src/block/bulk.rs), [integer reductions](src/block/bulk/reduce.rs), [native floating point](src/fastfp.rs), and [generated templates](src/spec_index.rs) |
 | Memory and threading | [RAM and device bus](src/bus.rs), [Sv39 and TLBs](src/mmu.rs), and [parallel harts](src/mt.rs) |
 | Firmware and devices | [Built-in SBI](src/sbi.rs), [device tree](src/fdt.rs), and [emulated devices](src/devices/) |
 | Networking and SSH | [IPv4/IPv6 gateway](src/net/mod.rs), [DNS proxy](src/net/dns.rs), [iOS SSH integration](ios/RvemuApp/Rssh.swift), and [rssh script](tools/rssh) |
 
 Both front ends create a machine that loads the kernel, initramfs, and devices.
-The scheduler runs each hart through decoded blocks. Fused instructions and bulk
-RAM loops reduce dispatch overhead, and slow paths use the ordinary instruction
-handlers for traps and device accesses. The iOS app uses the same static engine.
+The scheduler runs each hart through decoded blocks cached by physical address.
+Static handlers fuse decoded operations and batch eligible RAM loops within a
+page and the scheduler budget. Ordinary instruction handlers preserve precise
+traps and device accesses when a fast-path check fails. The one-hart iOS app
+uses the cooperative scheduler and the same statically compiled engine.
 
 ## Tests
 
@@ -37,6 +39,9 @@ the guest tests.
 - [ISA differential test](tests/isa/run_diff.sh) builds a freestanding RV64
   program with RISC-V Clang and LLD and compares the output with QEMU when
   available.
+- [RAM loop benchmarks](tests/isa/bulk_bench.S) verify forward and backward
+  copying, sentinel copying, filling, and integer reduction while measuring
+  throughput for identical guest instruction counts.
 
 ## Benchmarks and history
 

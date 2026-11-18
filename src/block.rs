@@ -25,10 +25,11 @@ use crate::mmu::Access;
 mod bulk;
 mod fusion;
 mod idioms;
+mod linear_memory;
 mod writeback;
 #[cfg(test)]
 mod overhaul_tests;
-use fusion::{commute_for_forwarding, first_forward, forward_store, jump_step, overwrite_pair, pair_step, quad_step, triple_step, xbr_step};
+use fusion::{commute_for_forwarding, first_forward, forward_store, jump_step, memory_with_gap, overwrite_pair, pair_step, quad_step, triple_step, xbr_step};
 
 /// Longest block, in instructions.
 const MAX_BLOCK: usize = 64;
@@ -416,8 +417,9 @@ impl Hart {
         let flow = &flow_a[..n];
         // A backward branch can describe a regular RAM loop. Remember its
         // first closing branch and inspect the body only if fusion reaches it.
+        let cooperative = bus.mt.is_none();
         let mut loop_ends = [0u8; MAX_BLOCK + 1];
-        if bus.mt.is_none() {
+        if cooperative {
             for (end, d) in ops[..n - 1].iter().enumerate() {
                 if matches!(d.op, Op::Beq | Op::Bltu | Op::Bne) && d.imm < 0 {
                     let target = d.off + d.imm;
@@ -485,7 +487,7 @@ impl Hart {
             // Adjacent accesses through one unchanged base register can share
             // translation and bounds validation. This is selected from the ISA
             // operands alone; no program identities or profiles are involved.
-            let memory = memory_run(&ops[i..n - 1]);
+            let memory = memory_run(&ops[i..n - 1], cooperative);
             if let Some((len, step)) = memory.filter(|(len, _)| *len >= 4) {
                 plan[i] = Some(step);
                 i += len;
@@ -535,6 +537,11 @@ impl Hart {
             }
             if i + 3 < n {
                 if let Some(step) = idioms::triple(&ops[i], &ops[i + 1], &ops[i + 2]) {
+                    plan[i] = Some(step);
+                    i += 3;
+                    continue;
+                }
+                if let Some(step) = memory_with_gap(&ops[i], &ops[i + 1], &ops[i + 2]) {
                     plan[i] = Some(step);
                     i += 3;
                     continue;
@@ -2006,7 +2013,55 @@ fn muldiv<const OP: u8>(a: u64, b: u64) -> u64 {
         (((a as i64 as i128) * (b as i128)) >> 64) as u64
     } else if is(Mulhu) {
         (((a as u128) * (b as u128)) >> 64) as u64
-    } else if is(Div) {
+    } else {
+        div_rem::<OP>(a, b)
+    }
+}
+
+/// ARM64 produces the RISC-V quotient on signed overflow and zero on a
+/// zero divisor. The latter already gives the correct remainder via a - q*b.
+#[cfg(target_arch = "aarch64")]
+#[inline(always)]
+fn div_rem<const OP: u8>(a: u64, b: u64) -> u64 {
+    use Op::*;
+    let is = |op: Op| OP == op as u8;
+    let word = is(Divw) || is(Divuw) || is(Remw) || is(Remuw);
+    let signed = is(Div) || is(Rem) || is(Divw) || is(Remw);
+    let quotient: u64;
+    macro_rules! divide {
+        ($instruction:literal, $lane:literal) => {
+            core::arch::asm!(concat!($instruction, " {q", $lane, "}, {a", $lane, "}, {b", $lane, "}"),
+                q = lateout(reg) quotient, a = in(reg) a, b = in(reg) b,
+                options(pure, nomem, nostack, preserves_flags),
+            )
+        };
+    }
+    // SAFETY: neither divide instruction traps, including on a zero divisor.
+    unsafe {
+        match (signed, word) {
+            (true, false) => divide!("sdiv", ""),
+            (false, false) => divide!("udiv", ""),
+            (true, true) => divide!("sdiv", ":w"),
+            (false, true) => divide!("udiv", ":w"),
+        }
+    }
+    let zero = if word { b as u32 == 0 } else { b == 0 };
+    let value = if is(Rem) || is(Remu) || is(Remw) || is(Remuw) {
+        a.wrapping_sub(quotient.wrapping_mul(b))
+    } else if zero {
+        u64::MAX
+    } else {
+        quotient
+    };
+    if word { sx32(value as u32) } else { value }
+}
+
+#[cfg(not(target_arch = "aarch64"))]
+#[inline(always)]
+fn div_rem<const OP: u8>(a: u64, b: u64) -> u64 {
+    use Op::*;
+    let is = |op: Op| OP == op as u8;
+    if is(Div) {
         let (x, y) = (a as i64, b as i64);
         if y == 0 {
             u64::MAX
@@ -2699,7 +2754,7 @@ fn fuses(d: &DInsn) -> bool {
 /// Adjacent loads or stores with the same base and width. Loads must not
 /// overwrite their address base before the run has finished. x0 loads retain
 /// their ordinary precise-fault path.
-fn memory_run(ops: &[DInsn]) -> Option<(usize, Step)> {
+fn memory_run(ops: &[DInsn], cooperative: bool) -> Option<(usize, Step)> {
     let a = ops.first()?;
     let (width, signed, store) = match a.op {
         Op::Ld => (8, false, false), Op::Lw => (4, true, false),
@@ -2739,7 +2794,12 @@ fn memory_run(ops: &[DInsn]) -> Option<(usize, Step)> {
             }
         };
     }
-    let step = match (width, signed, store) {
+    let linear = if cooperative && width >= 4 {
+        linear_memory::plan(&ops[..n], width, signed, store)
+    } else {
+        None
+    };
+    let step = linear.unwrap_or_else(|| match (width, signed, store) {
         (8, _, false) => pick_n!(8, false, false),
         (4, true, false) => pick_n!(4, true, false),
         (4, false, false) => pick_n!(4, false, false),
@@ -2751,7 +2811,7 @@ fn memory_run(ops: &[DInsn]) -> Option<(usize, Step)> {
         (4, _, true) => pick_n!(4, false, true),
         (2, _, true) => pick_n!(2, false, true),
         _ => pick_n!(1, false, true),
-    };
+    });
     // Memory instructions never use the direct-exit link. Keep the lowest
     // displacement and the precomputed page-offset bound there instead.
     let limit = (4096 - width - (hi as i64 - lo as i64) as usize) / width;
@@ -3113,7 +3173,7 @@ mod memory_run_tests {
                             d.imm = (slot * width) as i32; d.len = 4; d.off = (k * 4) as i32;
                             d
                         }).collect();
-                        let (len, step) = memory_run(&ops).unwrap();
+                        let (len, step) = memory_run(&ops, true).unwrap();
                         assert_eq!(len, n);
                         let mut end = DInsn::EMPTY; end.off = n as i32 * 4;
                         ops.push(end);
@@ -3148,7 +3208,7 @@ mod memory_run_tests {
             let mut a = DInsn::EMPTY;
             a.op = Op::Ld; a.rs1 = 20; a.rd = rd;
             let mut b = a.clone(); b.imm = 8;
-            assert!(memory_run(&[a, b]).is_none());
+            assert!(memory_run(&[a, b], true).is_none());
         }
     }
 

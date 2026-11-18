@@ -197,8 +197,11 @@ impl Bus {
             let bits = self.bits_of(ppn);
             for word in lo >> 6..=hi >> 6 {
                 let mask = halfword_mask(word, lo, hi);
-                if bits[word].load(Relaxed) & mask != mask {
-                    bits[word].fetch_or(mask, Relaxed);
+                let before = bits[word].load(Relaxed);
+                let after = before | mask;
+                if before != after {
+                    // Other bitmap writers hold the same lock in SMP mode.
+                    bits[word].store(after, Relaxed);
                 }
             }
             if self.code_flag[ppn].load(Relaxed) == 0 {

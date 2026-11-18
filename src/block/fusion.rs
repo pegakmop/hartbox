@@ -230,6 +230,91 @@ unsafe fn memory_at<const OP: u8>(h: &mut Hart, d: &DInsn, host: usize) -> u64 {
     value
 }
 
+/// Two nearby accesses can share a RAM translation even when an integer
+/// operation separates them. For a base increment, fold the increment into
+/// the second displacement while keeping the architectural write in order.
+pub(super) fn memory_with_gap(a: &DInsn, b: &DInsn, c: &DInsn) -> Option<Step> {
+    let width = memory_width(a.op as u8);
+    if width == 0
+        || width != memory_width(c.op as u8)
+        || a.rs1 != c.rs1
+        || (!is_store(a.op as u8) && (a.rd == 0 || a.rd == a.rs1))
+        || (!is_store(c.op as u8) && c.rd == 0)
+        || b.rd == 0
+    {
+        return None;
+    }
+    let update = if b.rd == a.rs1 {
+        if b.op != Op::Addi || b.rs1 != a.rs1 {
+            return None;
+        }
+        b.imm
+    } else {
+        0
+    };
+    let end = c.imm + update;
+    let lo = a.imm.min(end);
+    let span = a.imm.abs_diff(end) as usize;
+    if span + width > 256 || span % width != 0 {
+        return None;
+    }
+    macro_rules! select {
+        ($($first:ident $last:ident),* $(,)?) => {
+            match (a.op, c.op) {
+                $((Op::$first, Op::$last) => gap_step::<{ Op::$first as u8 }, { Op::$last as u8 }>(b.op),)*
+                _ => None,
+            }
+        };
+    }
+    let step = select!(Ld Ld, Sd Sd, Ld Sd, Sd Ld,
+        Lw Lw, Lwu Lwu, Sw Sw, Lw Sw, Lwu Sw, Sw Lw, Sw Lwu,
+        Lb Lb, Lbu Lbu, Sb Sb, Lb Sb, Lbu Sb, Sb Lb, Sb Lbu,
+        Lh Lh, Lhu Lhu, Sh Sh, Lh Sh, Lhu Sh, Sh Lh, Sh Lhu)?;
+    let limit = (4096 - width - span) / width;
+    a.link.set(lo as u32 as usize
+        | ((a.imm - lo) as usize) << 32
+        | ((end - lo) as usize) << 40
+        | limit << 48);
+    Some(step)
+}
+
+fn gap_step<const A: u8, const C: u8>(op: Op) -> Option<Step> {
+    macro_rules! select {
+        ($($op:ident),* $(,)?) => {
+            match op {
+                $(Op::$op => Some(step_memory_with_gap::<A, { Op::$op as u8 }, C> as Step),)*
+                _ => None,
+            }
+        };
+    }
+    select!(Add, Sub, And, Or, Xor, Sll, Srl, Sra, Slt, Sltu, Mul, Addw, Subw, Sllw, Srlw, Sraw, Mulw,
+        Addi, Andi, Ori, Xori, Slli, Srli, Srai, Addiw, Slti, Sltiu, Slliw, Srliw, Sraiw, Lui, Auipc)
+}
+
+#[inline(never)]
+unsafe fn step_memory_with_gap<const A: u8, const B: u8, const C: u8>(
+    chain: Chain, tlb: *mut FastTlb, h: &mut Hart, bus: &mut Bus,
+    d: *const DInsn, fa: u64, fb: u64,
+) -> u64 {
+    let next = pre3(d);
+    let first = &*d;
+    let meta = first.link.get();
+    let va = h.rx_u(first.rs1).wrapping_add_signed(i64::from(meta as i32));
+    // A populated store entry also guarantees read permission: a writable
+    // Sv39 leaf is always readable. It excludes pages carrying decoded code.
+    let entry = tlb_entry(tlb.add(FTLB_SETS * usize::from(is_store(A) || is_store(C))), va);
+    let delta = va.wrapping_sub(entry.tag).rotate_right(memory_width(A).trailing_zeros());
+    if entry.tag == u64::MAX || delta > (meta >> 48) as u64 {
+        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    }
+    let host = va.wrapping_add(entry.addend) as usize;
+    memory_at::<A>(h, first, host + usize::from((meta >> 32) as u8));
+    // The planner selects pure register operations, none of which can fail.
+    let middle = try_fast_v::<B>(chain, tlb, h, d.add(1)).unwrap_unchecked();
+    let last = memory_at::<C>(h, &*d.add(2), host + usize::from((meta >> 40) as u8));
+    next(chain, tlb, h, bus, d.add(3), last, middle)
+}
+
 /// The second operation consumes and overwrites the first operation's result.
 /// Commit the intermediate value only if the second operation takes a slow path.
 #[inline(never)]

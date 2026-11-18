@@ -31,7 +31,9 @@ using aligned direct I/O. It needs Python on the disposable disk.
 The freestanding `tests/isa/bulk_bench.S` benchmark isolates the cooperative
 interpreter's RAM loops. Build it with the same RISC-V Clang and LLD used for
 `tests/isa/run_diff.sh`. Add `-DCOPY` for copy throughput. The default build
-measures fill throughput.
+measures fill throughput. Use `-DCOPY -DREVERSE` for descending copies,
+`-DCOPY -DSENTINEL` for copies that stop on a marker, or `-DREDUCE` to sum
+a stream of integer loads. Each mode checks the guest's results.
 
     clang --target=riscv64-unknown-elf -march=rv64gc -mabi=lp64d -nostdlib \
         -fuse-ld=ld.lld -Wl,-T,tests/isa/link.ld tests/isa/bulk_bench.S -o /tmp/bulk-fill.elf

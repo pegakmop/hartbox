@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 use crate::arch::*;
 use crate::bus::Bus;
 use crate::block::{BlockArena, BlockPage, PendingLink};
-use crate::mmu::Tlb;
+use crate::mmu::{Superpages, Tlb};
 
 /// A synchronous exception or an interrupt, with its trap value.
 #[derive(Clone, Copy, Debug)]
@@ -144,10 +144,8 @@ pub struct Hart {
     /// was made for since translations were last discarded. An `sfence.vma` for a page
     /// whose bit is clear has no such entry to kill (see `Hart::sfence_vma`).
     pub(crate) link_pages: [u64; LINK_PAGE_WORDS],
-    /// Hashes of superpages from which a fast translation or block link may have
-    /// been derived, independent of eviction from the page-walk TLB.
-    pub(crate) superpage_2m: [u64; 8],
-    pub(crate) superpage_1g: [u64; 8],
+    /// Large leaves that may have populated flat translations or block links.
+    pub(crate) superpages: Superpages,
     /// Reverse hint for a RAM page's store translation: store-only slot + 1, or
     /// u16::MAX for aliases. Valid only while its stlb_pages bit is set.
     pub(crate) stlb_slots: Vec<u16>,
@@ -300,8 +298,7 @@ impl Hart {
             ras: [RasEntry::EMPTY; RAS_SIZE],
             ras_sp: 0,
             link_pages: [0; LINK_PAGE_WORDS],
-            superpage_2m: [0; 8],
-            superpage_1g: [0; 8],
+            superpages: Superpages::default(),
             ltlb_cur: std::ptr::null_mut(),
             stlb_cur: std::ptr::null_mut(),
             bcache_ptr: std::ptr::null_mut(),

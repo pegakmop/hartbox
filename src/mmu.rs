@@ -28,11 +28,69 @@ const TLB_GEN_SHIFT: u32 = 58;
 const TLB_GEN_MASK: u64 = u64::MAX << TLB_GEN_SHIFT;
 const TLB_TAG_MASK: u64 = TLB_GEN_MASK | VPN_MASK;
 
-#[inline(always)]
-fn superpage_bits(vpn: u64) -> (usize, usize) {
-    let one_gib = (vpn >> 18) as usize & 511;
-    let two_mib = ((vpn >> 9) as usize ^ one_gib) & 511;
-    (two_mib, one_gib)
+/// The significant Sv39 VPN bits identify 512 1 GiB and 262,144 2 MiB
+/// regions. Keep exact marks even when the page-walk TLB evicts a large leaf.
+/// Each dirty group covers 64 words so an address-space switch clears only
+/// the parts of the 2 MiB bitmap that were used.
+pub(crate) struct Superpages {
+    large: [u64; 8],
+    medium: Box<[u64]>,
+    dirty: u64,
+}
+
+impl Default for Superpages {
+    fn default() -> Self {
+        Self { large: [0; 8], medium: vec![0; 4096].into_boxed_slice(), dirty: 0 }
+    }
+}
+
+impl Superpages {
+    #[inline(always)]
+    fn slot(vpn: u64) -> usize {
+        (vpn as usize >> 9) & ((1 << 18) - 1)
+    }
+
+    #[inline(always)]
+    fn mark(&mut self, vpn: u64, mask: u64) {
+        let medium = Self::slot(vpn);
+        if mask == MASK_2M {
+            self.medium[medium >> 6] |= 1 << (medium & 63);
+            self.dirty |= 1 << (medium >> 12);
+        } else {
+            let large = medium >> 9;
+            self.large[large >> 6] |= 1 << (large & 63);
+        }
+    }
+
+    /// Remove the mark whose entire cached region is about to be invalidated.
+    fn take_region(&mut self, vpn: u64) -> u64 {
+        let medium = Self::slot(vpn);
+        let large = medium >> 9;
+        let large_word = &mut self.large[large >> 6];
+        let large_bit = 1 << (large & 63);
+        if *large_word & large_bit != 0 {
+            *large_word &= !large_bit;
+            self.medium[large * 8..large * 8 + 8].fill(0);
+            return MASK_1G;
+        }
+        let medium_word = &mut self.medium[medium >> 6];
+        let medium_bit = 1 << (medium & 63);
+        if *medium_word & medium_bit == 0 {
+            return 0;
+        }
+        *medium_word &= !medium_bit;
+        MASK_2M
+    }
+
+    fn clear(&mut self) {
+        self.large.fill(0);
+        let mut groups = std::mem::take(&mut self.dirty);
+        while groups != 0 {
+            let start = groups.trailing_zeros() as usize * 64;
+            groups &= groups - 1;
+            self.medium[start..start + 64].fill(0);
+        }
+    }
 }
 
 #[inline(always)]
@@ -525,12 +583,7 @@ impl Hart {
             }
         };
         if mask != 0 {
-            let (two_mib, one_gib) = superpage_bits(vpn);
-            if mask == MASK_2M {
-                self.superpage_2m[two_mib >> 6] |= 1 << (two_mib & 63);
-            } else {
-                self.superpage_1g[one_gib >> 6] |= 1 << (one_gib & 63);
-            }
+            self.superpages.mark(vpn, mask);
         }
         Ok((pa, mask))
     }
@@ -656,36 +709,72 @@ impl Hart {
     /// `sfence.vma` with the usual `rs1`/`rs2` (x0) wildcard rules.
     ///
     /// A fence for one page does not throw everything away. The hardware TLB drops the
-    /// entries that match. The flat data tables drop the one slot the page can occupy
-    /// (all of them if a superpage covered it, since its other pages were cached too).
+    /// entries that match. The flat data tables drop the slots covered by the
+    /// corresponding leaf, including siblings derived from a large mapping.
     /// The block links, which are keyed by virtual pc under the translation epoch, only
     /// need the epoch to move if one of them was made for this page (`link_pages`): the
     /// kernel fences data pages all the time (copy on write, `mprotect`, `munmap`), and
     /// those never carry code.
     pub(crate) fn sfence_vma(&mut self, va: Option<u64>, asid: Option<u16>) {
         crate::counters::inc(&crate::counters::SFENCES);
+        // The flat tables and fetch links are only populated for the active
+        // address space. SATP writes already discard them on an ASID change.
+        if asid.is_some_and(|asid| asid != self.asid) {
+            self.tlb.sfence(va.map(|va| va >> 12), asid);
+            return;
+        }
         let Some(va) = va else {
             self.tlb.sfence(None, asid);
             self.flush_translation_cache();
             return;
         };
         let vpn = va >> 12;
-        let (two_mib, one_gib) = superpage_bits(vpn);
-        let covered_by_superpage = self.superpage_2m[two_mib >> 6] & (1 << (two_mib & 63)) != 0
-            || self.superpage_1g[one_gib >> 6] & (1 << (one_gib & 63)) != 0;
+        let canonical = ((va as i64) << 25) >> 25 == va as i64;
+        let region_mask = if canonical { self.superpages.take_region(vpn) } else { 0 };
         self.tlb.sfence(Some(vpn), asid);
-        if covered_by_superpage {
-            self.flush_translation_cache();
-            return;
-        }
         crate::counters::inc(&crate::counters::SFENCE_PAGE);
-        self.flush_data_page(va);
-        if self.page_has_links(vpn) {
+        if region_mask != 0 {
+            self.flush_data_region(vpn, region_mask);
+            // Block links may have reached a sibling page through the same
+            // large leaf, including leaves evicted from the page-walk TLB.
             self.invalidate_block_links();
+        } else {
+            self.flush_data_page(va);
+            if self.page_has_links(vpn) {
+                self.invalidate_block_links();
+            }
         }
         for fetch in &mut self.ifetch {
-            if vpn & !fetch.mask == fetch.tag {
+            let shared = !(fetch.mask | region_mask);
+            if (vpn ^ fetch.tag) & shared == 0 {
                 *fetch = MicroTlb::EMPTY;
+            }
+        }
+    }
+
+    /// A large leaf can populate many flat slots, including recently evicted
+    /// entries. Clear the entries in that virtual range across all contexts.
+    fn flush_data_region(&mut self, vpn: u64, mask: u64) {
+        let region = vpn & !mask;
+        let first = ftlb_index(region << 12) / FTLB_GROUP;
+        let group_count = ((mask + 1) as usize).min(FTLB_SETS) / FTLB_GROUP;
+        let group_mask = (u64::MAX >> (64 - group_count)) << first;
+        let matches = |entry: &FastTlb| (entry.tag >> 12) & !mask == region;
+        for table in 0..2 * DCTX {
+            let mut groups = self.ftlb_dirty[table] & group_mask;
+            while groups != 0 {
+                let start = table * FTLB_SETS + groups.trailing_zeros() as usize * FTLB_GROUP;
+                groups &= groups - 1;
+                for entry in &mut self.ftlb_store[start..start + FTLB_GROUP] {
+                    if matches(entry) {
+                        *entry = FastTlb::EMPTY;
+                    }
+                }
+            }
+        }
+        for entry in self.load_victim.iter_mut().chain(&mut self.store_victim).flatten() {
+            if matches(entry) {
+                *entry = FastTlb::EMPTY;
             }
         }
     }
@@ -724,8 +813,7 @@ impl Hart {
         self.stlb_pages.fill(0);
         self.select_dctx();
         self.ifetch.fill(MicroTlb::EMPTY);
-        self.superpage_2m.fill(0);
-        self.superpage_1g.fill(0);
+        self.superpages.clear();
         self.invalidate_block_links();
     }
 
@@ -902,11 +990,43 @@ mod tests {
         hart.csr_write(CSR_SATP, (8 << 60) | (root >> 12)).unwrap();
         hart.set_prv(PRV_S);
         assert_eq!(hart.load::<1>(&mut bus, va).unwrap(), 7);
+        let unrelated = (1 << 30) + (1 << 21) + 0x3000;
+        hart.ftlb_fill(&bus, unrelated, RAM_BASE + 0x3000, false);
+        hart.sfence_vma(Some(unrelated), None);
+        // This address shared the former 2 MiB hash with the live leaf.
+        assert_eq!(unsafe { (*hart.ltlb_cur.add(ftlb_index(va))).tag }, va);
+        hart.ftlb_fill(&bus, unrelated, RAM_BASE + 0x3000, false);
         // Evict this translation from the 2 MiB TLB, leaving its flat entry.
         hart.tlb.insert(TLB_BIG2M as u64 * 512, MASK_2M, RAM_BASE >> 12, 0, P_R);
         bus.write::<8>(leaf, 0).unwrap();
+        hart.sfence_vma(Some(va + 4096), Some(1));
+        assert_eq!(hart.load::<1>(&mut bus, va).unwrap(), 7);
         hart.sfence_vma(Some(va + 4096), None);
         assert_eq!(hart.load::<1>(&mut bus, va).unwrap_err().cause as u64, EXC_LOAD_PAGE);
+        assert_eq!(unsafe { (*hart.ltlb_cur.add(ftlb_index(unrelated))).tag }, unrelated);
+    }
+
+    #[test]
+    fn fence_clears_all_cached_slots_of_a_gigapage() {
+        let mut hart = Hart::new(0, false);
+        let mut bus = Bus::new(64 << 10, 1);
+        let root = RAM_BASE + 0x4000;
+        let va = 0x1000;
+        let alias = va + 4096 * FTLB_SETS as u64;
+        let other = (1 << 30) + 0x3000;
+        bus.write::<8>(root, ((RAM_BASE >> 12) << 10) | PTE_V | PTE_R | PTE_A).unwrap();
+        hart.csr_write(CSR_SATP, (8 << 60) | (root >> 12)).unwrap();
+        hart.set_prv(PRV_S);
+        assert_eq!(hart.load::<1>(&mut bus, va).unwrap(), 0);
+        // Both the primary slot and its eviction victim came from the same
+        // region. A fence on a third page must discard them both.
+        hart.ftlb_fill(&bus, alias, RAM_BASE + 0x2000, false);
+        hart.ftlb_fill(&bus, other, RAM_BASE + 0x3000, false);
+        bus.write::<8>(root, 0).unwrap();
+        hart.sfence_vma(Some(0x8000), None);
+        assert_eq!(hart.load::<1>(&mut bus, va).unwrap_err().cause as u64, EXC_LOAD_PAGE);
+        assert_eq!(hart.load::<1>(&mut bus, alias).unwrap_err().cause as u64, EXC_LOAD_PAGE);
+        assert_eq!(unsafe { (*hart.ltlb_cur.add(ftlb_index(other))).tag }, other);
     }
 
     #[test]
