@@ -92,7 +92,11 @@ pub(super) fn resolve(query: &[u8], udp: bool, fallback: Option<IpAddr>) -> Opti
     let Some(q) = question(query) else {
         return Some(short_reply(query, HEADER, 1));
     };
-    let mut answer = match system_query(&q) {
+    #[cfg(target_os = "ios")]
+    let reply = ios_address_query(query, &q);
+    #[cfg(not(target_os = "ios"))]
+    let reply = None;
+    let mut answer = match reply.or_else(|| system_query(&q)) {
         Some(SystemReply::Message(reply)) => reply,
         Some(SystemReply::Negative(code)) => return Some(short_reply(query, q.end, code)),
         None => match fallback.and_then(|ip| forward(query, udp, ip).ok()) {
@@ -105,6 +109,95 @@ pub(super) fn resolve(query: &[u8], udp: bool, fallback: Option<IpAddr>) -> Opti
     }
     answer[..2].copy_from_slice(&query[..2]);
     Some(answer)
+}
+
+#[cfg(target_os = "ios")]
+fn ios_address_query(query: &[u8], q: &Question) -> Option<SystemReply> {
+    use libc::{addrinfo, sockaddr_in, sockaddr_in6, AF_INET, AF_INET6, EAI_NODATA, EAI_NONAME, SOCK_STREAM};
+    use std::ptr;
+
+    let family = match (q.class, q.kind) {
+        (1, 1) => AF_INET,
+        (1, 28) => AF_INET6,
+        _ => return None,
+    };
+    // iOS apps resolve internet addresses through getaddrinfo. The raw
+    // resolver may fail inside the app even when the system can resolve
+    // the name. Request the specific family because an unrestricted lookup
+    // can omit AAAA records when the phone is on an IPv4-only network.
+    let addresses = unsafe {
+        let mut hints: addrinfo = std::mem::zeroed();
+        hints.ai_family = family;
+        hints.ai_socktype = SOCK_STREAM;
+        let mut results = ptr::null_mut();
+        match libc::getaddrinfo(q.name.as_ptr(), ptr::null(), &hints, &mut results) {
+            0 => {}
+            // A name can exist with addresses only in the other family.
+            EAI_NODATA | EAI_NONAME => return Some(SystemReply::Negative(0)),
+            _ => return None,
+        }
+        let mut addresses = Vec::new();
+        let mut item = results;
+        while let Some(info) = item.as_ref() {
+            item = info.ai_next;
+            if info.ai_addr.is_null() {
+                continue;
+            }
+            match info.ai_family {
+                AF_INET if info.ai_addrlen as usize >= std::mem::size_of::<sockaddr_in>() => {
+                    let ip = (*info.ai_addr.cast::<sockaddr_in>()).sin_addr;
+                    addresses.push(IpAddr::V4(ip.s_addr.to_ne_bytes().into()));
+                }
+                AF_INET6 if info.ai_addrlen as usize >= std::mem::size_of::<sockaddr_in6>() => {
+                    let ip = (*info.ai_addr.cast::<sockaddr_in6>()).sin6_addr;
+                    addresses.push(IpAddr::V6(ip.s6_addr.into()));
+                }
+                _ => {}
+            }
+        }
+        if !results.is_null() {
+            libc::freeaddrinfo(results);
+        }
+        addresses
+    };
+    Some(SystemReply::Message(address_answer(query, q, addresses.into_iter())))
+}
+
+#[cfg(any(target_os = "ios", test))]
+fn address_answer(query: &[u8], q: &Question, addresses: impl Iterator<Item = IpAddr>) -> Vec<u8> {
+    let mut reply = short_reply(query, q.end, 0);
+    let mut seen = std::collections::HashSet::new();
+    let mut count = 0u16;
+    for ip in addresses {
+        let mut bytes = [0; 16];
+        let size = match (q.kind, ip) {
+            (1, IpAddr::V4(ip)) => {
+                bytes[..4].copy_from_slice(&ip.octets());
+                4
+            }
+            (28, IpAddr::V6(ip)) if ip.to_ipv4_mapped().is_none() => {
+                bytes = ip.octets();
+                16
+            }
+            _ => continue,
+        };
+        if reply.len() + 12 + size > MAX_DNS {
+            break;
+        }
+        if !seen.insert(ip) {
+            continue;
+        }
+        reply.extend_from_slice(&[0xc0, HEADER as u8]);
+        reply.extend_from_slice(&q.kind.to_be_bytes());
+        reply.extend_from_slice(&q.class.to_be_bytes());
+        // getaddrinfo does not expose the upstream TTL.
+        reply.extend_from_slice(&30u32.to_be_bytes());
+        reply.extend_from_slice(&(size as u16).to_be_bytes());
+        reply.extend_from_slice(&bytes[..size]);
+        count += 1;
+    }
+    reply[6..8].copy_from_slice(&count.to_be_bytes());
+    reply
 }
 
 fn forward(query: &[u8], udp: bool, server: IpAddr) -> io::Result<Vec<u8>> {
@@ -261,5 +354,29 @@ mod tests {
         packet[HEADER] = 0xc0;
         assert!(question(&packet).is_none());
         assert_eq!(resolve(&packet, true, None).unwrap()[3] & 15, 1);
+    }
+
+    #[test]
+    fn address_answer_uses_the_requested_family_and_deduplicates() {
+        let mut packet = vec![0x42, 0x19, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+        packet.extend_from_slice(b"\x07example\x03com\0\0\x01\0\x01");
+        let q = question(&packet).unwrap();
+        let v4 = "192.0.2.17".parse::<IpAddr>().unwrap();
+        let v6 = "2001:db8::17".parse::<IpAddr>().unwrap();
+        let reply = address_answer(&packet, &q, [v6, v4, v4].into_iter());
+        assert_eq!(&reply[..8], &[0x42, 0x19, 0x81, 0x80, 0, 1, 0, 1]);
+        assert_eq!(
+            &reply[q.end..],
+            &[0xc0, 12, 0, 1, 0, 1, 0, 0, 0, 30, 0, 4, 192, 0, 2, 17]
+        );
+
+        packet[q.end - 3] = 28;
+        let q = question(&packet).unwrap();
+        let reply = address_answer(&packet, &q, [v4, v6].into_iter());
+        assert_eq!(word(&reply, 6), Some(1));
+        assert_eq!(&reply[q.end + 12..], &"2001:db8::17".parse::<Ipv6Addr>().unwrap().octets());
+        let empty = address_answer(&packet, &q, [v4].into_iter());
+        assert_eq!(word(&empty, 6), Some(0));
+        assert_eq!(empty.len(), q.end);
     }
 }
