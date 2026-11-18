@@ -33,7 +33,7 @@
 		A1B2C3D4E5F600000000014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000016 /* Modules */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Modules; sourceTree = "<group>"; };
 		A1B2C3D4E5F600000000018 /* librvemu_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = librvemu_ios.a; path = "rvemu-ios/target/aarch64-apple-ios/release/librvemu_ios.a"; sourceTree = SOURCE_ROOT; };
-		A1B2C3D4E5F600000000019 /* rvemu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rvemu.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4E5F600000000019 /* Hartbox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hartbox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,7 +95,7 @@
 		A1B2C3D4E5F60000000001F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F600000000019 /* rvemu.app */,
+				A1B2C3D4E5F600000000019 /* Hartbox.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -103,9 +103,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A1B2C3D4E5F600000000020 /* rvemu */ = {
+		A1B2C3D4E5F600000000020 /* Hartbox */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1B2C3D4E5F600000000021 /* Build configuration list for PBXNativeTarget "rvemu" */;
+			buildConfigurationList = A1B2C3D4E5F600000000021 /* Build configuration list for PBXNativeTarget "Hartbox" */;
 			buildPhases = (
 				A1B2C3D4E5F600000000022 /* Build rust library */,
 				A1B2C3D4E5F600000000023 /* Sources */,
@@ -114,9 +114,9 @@
 			);
 			buildRules = ();
 			dependencies = ();
-			name = rvemu;
-			productName = rvemu;
-			productReference = A1B2C3D4E5F600000000019 /* rvemu.app */;
+			name = Hartbox;
+			productName = Hartbox;
+			productReference = A1B2C3D4E5F600000000019 /* Hartbox.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -144,7 +144,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A1B2C3D4E5F600000000020 /* rvemu */,
+				A1B2C3D4E5F600000000020 /* Hartbox */,
 			);
 		};
 /* End PBXProject section */
@@ -255,12 +255,12 @@
 				INFOPLIST_FILE = RvemuApp/Info.plist;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/include";
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/target/aarch64-apple-ios/release";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = "$(inherited) -lresolv";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				CURRENT_PROJECT_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.u6170252806.rvemu;
-				PRODUCT_NAME = rvemu;
+				PRODUCT_NAME = Hartbox;
 				SWIFT_OBJC_BRIDGING_HEADER = RvemuApp/Rvemu-Bridging-Header.h;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
@@ -276,12 +276,12 @@
 				INFOPLIST_FILE = RvemuApp/Info.plist;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/include";
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/target/aarch64-apple-ios/release";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = "$(inherited) -lresolv";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				CURRENT_PROJECT_VERSION = 1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.u6170252806.rvemu;
-				PRODUCT_NAME = rvemu;
+				PRODUCT_NAME = Hartbox;
 				SWIFT_OBJC_BRIDGING_HEADER = RvemuApp/Rvemu-Bridging-Header.h;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
@@ -299,7 +299,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1B2C3D4E5F600000000021 /* Build configuration list for PBXNativeTarget "rvemu" */ = {
+		A1B2C3D4E5F600000000021 /* Build configuration list for PBXNativeTarget "Hartbox" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1B2C3D4E5F60000000002A /* Debug */,

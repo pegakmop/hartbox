@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Generate ios/rvemu.xcodeproj/project.pbxproj for the RvemuApp target."""
+"""Generate ios/rvemu.xcodeproj/project.pbxproj for the Hartbox target."""
 
 import os
 
 ROOT = os.path.dirname(os.path.abspath(__file__))  # ios/
 APP = "RvemuApp"
+PRODUCT = "Hartbox"
 TEAM = "8SPG7WLCWL"
 BUNDLE = "com.u6170252806.rvemu"
 
@@ -71,7 +72,7 @@ out.append(
     f"\t\t{oid('fr:lib')} /* {LIB} */ = {{isa = PBXFileReference; lastKnownFileType = archive.ar; name = {LIB}; path = \"{LIB_PATH}\"; sourceTree = SOURCE_ROOT; }};"
 )
 out.append(
-    f"\t\t{oid('fr:product')} /* rvemu.app */ = {{isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rvemu.app; sourceTree = BUILT_PRODUCTS_DIR; }};"
+    f"\t\t{oid('fr:product')} /* {PRODUCT}.app */ = {{isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = {PRODUCT}.app; sourceTree = BUILT_PRODUCTS_DIR; }};"
 )
 out.append("/* End PBXFileReference section */")
 
@@ -136,7 +137,7 @@ out.append("\t\t};")
 out.append(f"\t\t{oid('group:products')} /* Products */ = {{")
 out.append("\t\t\tisa = PBXGroup;")
 out.append("\t\t\tchildren = (")
-out.append(f"\t\t\t\t{oid('fr:product')} /* rvemu.app */,")
+out.append(f"\t\t\t\t{oid('fr:product')} /* {PRODUCT}.app */,")
 out.append("\t\t\t);")
 out.append("\t\t\tname = Products;")
 out.append("\t\t\tsourceTree = \"<group>\";")
@@ -145,9 +146,9 @@ out.append("/* End PBXGroup section */")
 
 # ------------------------------------------------------------- PBXNativeTarget
 out.append("\n/* Begin PBXNativeTarget section */")
-out.append(f"\t\t{oid('target')} /* rvemu */ = {{")
+out.append(f"\t\t{oid('target')} /* {PRODUCT} */ = {{")
 out.append("\t\t\tisa = PBXNativeTarget;")
-out.append(f"\t\t\tbuildConfigurationList = {oid('cfglist:target')} /* Build configuration list for PBXNativeTarget \"rvemu\" */;")
+out.append(f"\t\t\tbuildConfigurationList = {oid('cfglist:target')} /* Build configuration list for PBXNativeTarget \"{PRODUCT}\" */;")
 out.append("\t\t\tbuildPhases = (")
 out.append(f"\t\t\t\t{oid('phase:script')} /* Build rust library */,")
 out.append(f"\t\t\t\t{oid('phase:sources')} /* Sources */,")
@@ -156,9 +157,9 @@ out.append(f"\t\t\t\t{oid('phase:resources')} /* Resources */,")
 out.append("\t\t\t);")
 out.append("\t\t\tbuildRules = ();")
 out.append("\t\t\tdependencies = ();")
-out.append("\t\t\tname = rvemu;")
-out.append(f"\t\t\tproductName = rvemu;")
-out.append(f"\t\t\tproductReference = {oid('fr:product')} /* rvemu.app */;")
+out.append(f"\t\t\tname = {PRODUCT};")
+out.append(f"\t\t\tproductName = {PRODUCT};")
+out.append(f"\t\t\tproductReference = {oid('fr:product')} /* {PRODUCT}.app */;")
 out.append("\t\t\tproductType = \"com.apple.product-type.application\";")
 out.append("\t\t};")
 out.append("/* End PBXNativeTarget section */")
@@ -187,7 +188,7 @@ out.append(f"\t\t\tproductRefGroup = {oid('group:products')} /* Products */;")
 out.append("\t\t\tprojectDirPath = \"\";")
 out.append("\t\t\tprojectRoot = \"\";")
 out.append("\t\t\ttargets = (")
-out.append(f"\t\t\t\t{oid('target')} /* rvemu */,")
+out.append(f"\t\t\t\t{oid('target')} /* {PRODUCT} */,")
 out.append("\t\t\t);")
 out.append("\t\t};")
 out.append("/* End PBXProject section */")
@@ -294,7 +295,7 @@ target_common = [
     "MARKETING_VERSION = 1.0",
     "CURRENT_PROJECT_VERSION = 1",
     f"PRODUCT_BUNDLE_IDENTIFIER = {BUNDLE}",
-    "PRODUCT_NAME = rvemu",
+    f"PRODUCT_NAME = {PRODUCT}",
     f"SWIFT_OBJC_BRIDGING_HEADER = {APP}/Rvemu-Bridging-Header.h",
     "SWIFT_EMIT_LOC_STRINGS = NO",
 ]
@@ -327,7 +328,7 @@ out.append("\t\t\t);")
 out.append("\t\t\tdefaultConfigurationIsVisible = 0;")
 out.append("\t\t\tdefaultConfigurationName = Release;")
 out.append("\t\t};")
-out.append(f"\t\t{oid('cfglist:target')} /* Build configuration list for PBXNativeTarget \"rvemu\" */ = {{")
+out.append(f"\t\t{oid('cfglist:target')} /* Build configuration list for PBXNativeTarget \"{PRODUCT}\" */ = {{")
 out.append("\t\t\tisa = XCConfigurationList;")
 out.append("\t\t\tbuildConfigurations = (")
 out.append(f"\t\t\t\t{oid('cfg:tgt:debug')} /* Debug */,")

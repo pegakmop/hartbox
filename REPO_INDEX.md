@@ -1,6 +1,7 @@
 # Repository index
 
-Full-system RV64GC emulator. The Rust library is shared by the CLI and the iOS C ABI.
+Hartbox uses a full-system RV64GC emulator. The Rust library is shared by the
+`rvemu` CLI and the iOS C ABI.
 
 | Area | Entry points and responsibilities |
 | --- | --- |

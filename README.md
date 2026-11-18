@@ -1,6 +1,7 @@
-# rvemu
+# Hartbox
 
-A fast, command-line, full-system RISC-V emulator written in Rust. It runs RV64GC
+Hartbox boots Alpine Linux on iPhone and iPad and gives you a local terminal.
+Its Rust emulator, `rvemu`, also runs as a command-line program. It runs RV64GC
 (RV64IMAFDC with Zicsr and Zifencei), implements the privileged architecture
 (M/S/U modes, traps, Sv39 virtual memory), and boots **Linux 6.18** and
 **Alpine Linux 3.24 from its `minirootfs` tarball** to an interactive shell.
@@ -34,6 +35,16 @@ Requires a recent stable Rust toolchain (1.87 or newer).
 cargo build --release          # binary: target/release/rvemu
 cargo test --release           # unit tests
 tools/pgo.sh                   # optional: profile-guided build, +1 to 2 %, target/pgo/rvemu
+```
+
+### iPhone and iPad
+
+Build the Hartbox scheme in Xcode with the Rust iOS target installed.
+Select your Apple Developer team to archive and export a signed app.
+
+```sh
+rustup target add aarch64-apple-ios
+open ios/rvemu.xcodeproj
 ```
 
 ## Boot Alpine
@@ -131,6 +142,9 @@ echo depends on the host's own support for unprivileged ICMPv6 sockets.
 `/usr/local/bin/rssh` on every boot) and on macOS. It does not implement a protocol of its own:
 the encrypted connection is OpenSSH (an ed25519 key per machine, key-only login). `rssh` does the
 parts around it: run the server, announce it, find devices, pair once, log in.
+
+On macOS, run `tools/rssh` from this checkout or extract the release archive
+and run `./rssh`. The script uses the OpenSSH and Bonjour tools supplied by macOS.
 
 ```sh
 # in Alpine (the emulator on the Mac, or the iPhone app)

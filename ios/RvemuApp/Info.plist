@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>rvemu</string>
+	<string>Hartbox</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,9 +27,9 @@
 		<string>_rssh._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>rvemu can give the guest network access to servers on your local network, and lets your Mac find the guest for ssh (rssh).</string>
+	<string>Hartbox lets Alpine access servers on your local network and allows your Mac to find the guest for SSH.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Only used when you run "rssh set background on" in the guest: location updates (3 km accuracy, no GPS) keep rvemu running with the screen off so ssh stays reachable.</string>
+	<string>Location access keeps Hartbox running with the screen off so SSH stays reachable when you enable background mode from the guest.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

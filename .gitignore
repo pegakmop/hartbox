@@ -2,6 +2,7 @@
 *.cpio
 /tests/isa/out
 /examples/work
+/dist/
 /ios/build/
 /ios/rvemu-ios/target/
 /disk.img

@@ -1,4 +1,4 @@
-// rvemu for iOS: an Alpine Linux RISC-V machine in your pocket.
+// Hartbox boots Alpine Linux on iOS.
 
 import SwiftUI
 

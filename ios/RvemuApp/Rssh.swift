@@ -287,7 +287,7 @@ private final class BackgroundKeeper: NSObject, CLLocationManagerDelegate {
         }
         switch manager.authorizationStatus {
         case .denied, .restricted:
-            return "err location access is off: Settings > rvemu > Location > While Using the App\n"
+            return "err location access is off: Settings > Hartbox > Location > While Using the App\n"
         case .notDetermined:
             apply()
             return "ok background=on (allow location access on the phone; it is only used to keep the app running)\n"
