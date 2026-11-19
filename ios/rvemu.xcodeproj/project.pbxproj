@@ -257,8 +257,8 @@
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/target/aarch64-apple-ios/release";
 				OTHER_LDFLAGS = "$(inherited) -lresolv";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.1.0;
-				CURRENT_PROJECT_VERSION = 2;
+				MARKETING_VERSION = 1.2.0;
+				CURRENT_PROJECT_VERSION = 3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.u6170252806.rvemu;
 				PRODUCT_NAME = Hartbox;
 				SWIFT_OBJC_BRIDGING_HEADER = RvemuApp/Rvemu-Bridging-Header.h;
@@ -278,8 +278,8 @@
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/rvemu-ios/target/aarch64-apple-ios/release";
 				OTHER_LDFLAGS = "$(inherited) -lresolv";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.1.0;
-				CURRENT_PROJECT_VERSION = 2;
+				MARKETING_VERSION = 1.2.0;
+				CURRENT_PROJECT_VERSION = 3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.u6170252806.rvemu;
 				PRODUCT_NAME = Hartbox;
 				SWIFT_OBJC_BRIDGING_HEADER = RvemuApp/Rvemu-Bridging-Header.h;
