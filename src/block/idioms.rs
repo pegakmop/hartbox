@@ -1,9 +1,60 @@
 //! Statically compiled handlers for algebraic relationships in decoded operands.
 
-use super::{finish_jalr_to, pc_of, pre2, pre3, spec_load, spec_store, sx32, Chain, STEPS};
+use super::{finish_jalr_to, invoke, muldiv, operands, pc_of, pre2, pre3, spec_load, spec_store, sx32, Chain, STEPS};
 use crate::bus::Bus;
 use crate::hart::{FastTlb, Hart};
 use crate::insn::{DInsn, Op, Step};
+
+/// Pair the two outputs of a division or full-width product. Both instructions
+/// must use the same operands, and the first result must leave them intact.
+pub(super) fn integer_result_pair(a: &DInsn, b: &DInsn) -> Option<Step> {
+    use Op::*;
+    let step = match (a.op, b.op) {
+        (Div, Rem) => divide_pair::<{ Div as u8 }, false> as Step,
+        (Divu, Remu) => divide_pair::<{ Divu as u8 }, false>,
+        (Divw, Remw) => divide_pair::<{ Divw as u8 }, true>,
+        (Divuw, Remuw) => divide_pair::<{ Divuw as u8 }, true>,
+        (Mulh, Mul) => multiply_pair::<{ Mulh as u8 }>,
+        (Mulhu, Mul) => multiply_pair::<{ Mulhu as u8 }>,
+        (Mulhsu, Mul) => multiply_pair::<{ Mulhsu as u8 }>,
+        _ => return None,
+    };
+    (a.rs1 == b.rs1 && a.rs2 == b.rs2 && a.rd != a.rs1 && a.rd != a.rs2 && a.rd != 0 && b.rd != 0)
+        .then_some(step)
+}
+
+#[inline(never)]
+unsafe fn divide_pair<const OP: u8, const WORD: bool>(
+    chain: Chain, tlb: *mut FastTlb, h: &mut Hart, bus: &mut Bus,
+    d: *const DInsn, _fa: u64, packed: u64,
+) -> u64 {
+    let next = pre2(d);
+    let (rd, rs1, rs2, _) = operands(d, packed);
+    let (a, b) = (h.rx_u(rs1), h.rx_u(rs2));
+    let quotient = muldiv::<OP>(a, b);
+    // This also gives the mandated dividend on divide by zero and zero on
+    // signed overflow. Word operations retain only the low 32 bits.
+    let remainder = a.wrapping_sub(quotient.wrapping_mul(b));
+    let remainder = if WORD { sx32(remainder as u32) } else { remainder };
+    h.set_x(rd, quotient);
+    h.set_x((*d.add(1)).rd, remainder);
+    next.run(chain, tlb, h, bus, remainder, quotient)
+}
+
+#[inline(never)]
+unsafe fn multiply_pair<const OP: u8>(
+    chain: Chain, tlb: *mut FastTlb, h: &mut Hart, bus: &mut Bus,
+    d: *const DInsn, _fa: u64, packed: u64,
+) -> u64 {
+    let next = pre2(d);
+    let (rd, rs1, rs2, _) = operands(d, packed);
+    let (a, b) = (h.rx_u(rs1), h.rx_u(rs2));
+    let high = muldiv::<OP>(a, b);
+    let low = a.wrapping_mul(b);
+    h.set_x(rd, high);
+    h.set_x((*d.add(1)).rd, low);
+    next.run(chain, tlb, h, bus, low, high)
+}
 
 pub(super) fn triple(a: &DInsn, b: &DInsn, c: &DInsn) -> Option<Step> {
     if a.op == Op::Auipc && c.op == Op::Jalr {
@@ -88,7 +139,7 @@ unsafe fn load_at<const W: usize, const SIGNED: bool, const PC: bool, const SAVE
     let origin = address_origin::<PC>(chain, h, a);
     let va = origin.wrapping_add(a.link.get() as u64);
     let Some(value) = spec_load::<W, SIGNED>(tlb, h, bus, va) else {
-        return STEPS[a.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[a.op as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let base = if SAVE {
         let base = intermediate_base::<PC>(origin, a);
@@ -98,7 +149,7 @@ unsafe fn load_at<const W: usize, const SIGNED: bool, const PC: bool, const SAVE
         0
     };
     h.set_x((*d.add(1)).rd, value);
-    next(chain, tlb, h, bus, d.add(2), value, base)
+    next.run(chain, tlb, h, bus, value, base)
 }
 
 #[inline(never)]
@@ -118,10 +169,10 @@ unsafe fn store_at<const W: usize, const PC: bool>(
     let va = origin.wrapping_add(a.link.get() as u64);
     let value = if a.rd == b.rs2 { base } else { h.rx_u(b.rs2) };
     if !spec_store::<W>(tlb, h, bus, va, value) {
-        return STEPS[a.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[a.op as usize], chain, tlb, h, bus, d, fa, fb);
     }
     h.set_x(a.rd, base);
-    next(chain, tlb, h, bus, d.add(2), base, base)
+    next.run(chain, tlb, h, bus, base, base)
 }
 
 /// A PC-relative RAM load feeds an indirect jump. Translation and the load
@@ -171,7 +222,7 @@ unsafe fn step_load_jump<
     let a = &*d;
     let va = chain.pc(h).wrapping_add(a.link.get() as u64);
     let Some(value) = spec_load::<W, SIGNED>(tlb, h, bus, va) else {
-        return STEPS[Op::Auipc as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[Op::Auipc as usize], chain, tlb, h, bus, d, fa, fb);
     };
     if KEEP_BASE {
         h.set_x(
@@ -278,5 +329,5 @@ unsafe fn step_rotate<const LEFT: bool, const WORD: bool, const KEEP_FIRST: bool
     h.set_x(keep.rd, saved);
     h.set_x((*d.add(2)).rd, value);
     // If the second shift was overwritten, no consumer can ask for its value.
-    next(chain, tlb, h, bus, d.add(3), value, saved)
+    next.run(chain, tlb, h, bus, value, saved)
 }

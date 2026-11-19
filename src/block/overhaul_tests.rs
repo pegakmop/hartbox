@@ -91,6 +91,70 @@ fn decode_sequence(code: &[u32]) -> Vec<DInsn> {
 }
 
 #[test]
+fn mixed_width_reads_and_writes_share_a_page_without_reordering() {
+    for store_first in [false, true] {
+        for displacement in [0, 8] {
+            let load = i_type(3, 3, 26, 25, 0);
+            let store = 26 << 20 | 25 << 15 | 2 << 12 | displacement << 7 | 0x23;
+            let code = if store_first { [store, load, WFI] } else { [load, store, WFI] };
+            let ops = decode_sequence(&code);
+            let step = mixed_memory_pair(&ops[0], &ops[1]).unwrap();
+            for page_offset in [0x3008, 0x3ff8, MEMORY_SIZE - 8] {
+                for cached in [false, true] {
+                    run_case(&code, |hart, bus| {
+                        let base = RAM_BASE + page_offset;
+                        hart.x[25] = base;
+                        hart.x[26] = 0x1234_5678_abcd_ef01;
+                        bus.write::<8>(base, 0x1020_3040_5060_7080).unwrap();
+                        if cached {
+                            hart.ftlb_fill(bus, base, base, false);
+                            hart.ftlb_fill(bus, base, base, true);
+                        }
+                    }, 4, step);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn trap_bookkeeping_csrs_keep_precise_masks_and_privilege_checks() {
+    let exchange = (u32::from(CSR_MEPC) << 20) | 26 << 15 | 1 << 12 | 27 << 7 | 0x73;
+    let read = (u32::from(CSR_MEPC) << 20) | 2 << 12 | 28 << 7 | 0x73;
+    let code = [exchange, addi(26, 26, 7), read, WFI];
+    let (hart, _) = run_case(&code, |hart, _| hart.x[26] = 0x1235, 3, step_generic);
+    assert_eq!((hart.x[26], hart.x[27], hart.x[28]), (0x123c, 0, 0x1234));
+    let (hart, _) = run_case(&code, |hart, _| hart.set_prv(PRV_S), 3, step_generic);
+    assert_eq!((hart.mcause, hart.mtval, hart.x[26]), (EXC_ILLEGAL, u64::from(exchange), 0));
+}
+
+#[test]
+fn integer_result_pairs_match_scalar_edges_and_reject_source_clobbers() {
+    let encode = |op: u32, funct3: u32, rd: u32| {
+        1 << 25 | 12 << 20 | 11 << 15 | funct3 << 12 | rd << 7 | op
+    };
+    for (op, first, second) in [
+        (0x33, 4, 6), (0x33, 5, 7), (0x3b, 4, 6), (0x3b, 5, 7),
+        (0x33, 1, 0), (0x33, 2, 0), (0x33, 3, 0),
+    ] {
+        let code = [encode(op, first, 13), encode(op, second, 14), WFI];
+        let d = decode_sequence(&code);
+        let step = idioms::integer_result_pair(&d[0], &d[1]).unwrap();
+        let clobber = decode32(encode(op, first, 11));
+        assert!(idioms::integer_result_pair(&clobber, &d[1]).is_none());
+        for (a, b) in [
+            (u64::MAX, 0), (1 << 63, u64::MAX), (1 << 31, u64::MAX),
+            (0xfedc_ba98_ffff_ffff, 0xaaaa_aaaa_0000_0000), (u64::MAX, 3),
+        ] {
+            run_case(&code, |hart, _| {
+                hart.x[11] = a;
+                hart.x[12] = b;
+            }, 3, step);
+        }
+    }
+}
+
+#[test]
 fn fused_ram_window_preserves_order_and_second_access_faults() {
     let mut code = [i_type(3, 3, 6, 5, 0), addi(5, 5, 8), sd(5, 6, 0), WFI];
     for reverse in [false, true] {

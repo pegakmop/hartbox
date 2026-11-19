@@ -247,7 +247,7 @@ mod native {
             let va = h.rx_u(di.rs1).wrapping_add(di.imm as u64);
             if let Some(v) = tlb_load::<N>(tlb, h, va) {
                 set_fr(h, di.rd, if N == 4 { box_s(v as u32) } else { v });
-                return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                return nx.run(chain, tlb, h, bus, fa, fa);
             }
         }
         slow(chain, tlb, h, bus, d, fa, fb)
@@ -262,7 +262,7 @@ mod native {
             let va = h.rx_u(di.rs1).wrapping_add(di.imm as u64);
             let v = fr(h, di.rs2);
             if tlb_store::<N>(tlb, h, va, if N == 4 { v as u32 as u64 } else { v }) {
-                return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                return nx.run(chain, tlb, h, bus, fa, fa);
             }
         }
         slow(chain, tlb, h, bus, d, fa, fb)
@@ -307,13 +307,13 @@ mod native {
                 let r = bin_d::<OP>(f64::from_bits(a), f64::from_bits(b));
                 if !r.is_nan() {
                     set_fr(h, di.rd, r.to_bits());
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             } else if boxed(a) && boxed(b) {
                 let r = bin_s::<OP>(s_of(a), s_of(b));
                 if !r.is_nan() {
                     set_fr(h, di.rd, box_s(r.to_bits()));
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             }
         }
@@ -331,13 +331,13 @@ mod native {
                 let r = fsqrt_d(f64::from_bits(a));
                 if !r.is_nan() {
                     set_fr(h, di.rd, r.to_bits());
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             } else if boxed(a) {
                 let r = fsqrt_s(s_of(a));
                 if !r.is_nan() {
                     set_fr(h, di.rd, box_s(r.to_bits()));
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             }
         }
@@ -368,7 +368,7 @@ mod native {
                 };
                 if !r.is_nan() {
                     set_fr(h, di.rd, r.to_bits());
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             } else if boxed(a) && boxed(b) && boxed(c) {
                 let (x, y, z) = (s_of(a), s_of(b), s_of(c));
@@ -380,7 +380,7 @@ mod native {
                 };
                 if !r.is_nan() {
                     set_fr(h, di.rd, box_s(r.to_bits()));
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             }
         }
@@ -421,7 +421,7 @@ mod native {
                 box_s((a & !S) | sign)
             };
             set_fr(h, di.rd, r);
-            return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+            return nx.run(chain, tlb, h, bus, fa, fa);
         }
         slow(chain, tlb, h, bus, d, fa, fb)
     }
@@ -462,7 +462,7 @@ mod native {
                         a | b
                     };
                     set_fr(h, di.rd, r);
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             } else if boxed(a) && boxed(b) {
                 let (x, y) = (cvt_d_of_s(s_of(a)), cvt_d_of_s(s_of(b)));
@@ -486,7 +486,7 @@ mod native {
                         a | b
                     };
                     set_fr(h, di.rd, box_s(r));
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             }
         }
@@ -520,7 +520,7 @@ mod native {
                     _ => x == y,
                 };
                 h.wx_u(di.rd, r as u64);
-                return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                return nx.run(chain, tlb, h, bus, fa, fa);
             }
         }
         slow(chain, tlb, h, bus, d, fa, fb)
@@ -599,7 +599,7 @@ mod native {
                 };
                 let r = if LONG { r } else { r as u32 as i32 as i64 as u64 };
                 h.wx_u(di.rd, r);
-                return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                return nx.run(chain, tlb, h, bus, fa, fa);
             }
         }
         slow(chain, tlb, h, bus, d, fa, fb)
@@ -629,7 +629,7 @@ mod native {
                 (false, false, false) => box_s(ucvtf_sw(x).to_bits()),
             };
             set_fr(h, di.rd, r);
-            return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+            return nx.run(chain, tlb, h, bus, fa, fa);
         }
         slow(chain, tlb, h, bus, d, fa, fb)
     }
@@ -643,7 +643,7 @@ mod native {
             let x = f64::from_bits(fr(h, di.rs1));
             if !x.is_nan() {
                 set_fr(h, di.rd, box_s(cvt_s_of_d(x).to_bits()));
-                return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                return nx.run(chain, tlb, h, bus, fa, fa);
             }
         }
         slow(chain, tlb, h, bus, d, fa, fb)
@@ -660,7 +660,7 @@ mod native {
                 let x = cvt_d_of_s(s_of(a));
                 if !x.is_nan() {
                     set_fr(h, di.rd, x.to_bits());
-                    return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+                    return nx.run(chain, tlb, h, bus, fa, fa);
                 }
             }
         }
@@ -675,7 +675,7 @@ mod native {
         if fs_on(h) {
             let a = fr(h, di.rs1);
             h.wx_u(di.rd, if DBL { a } else { unbox_s(a) as i32 as i64 as u64 });
-            return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+            return nx.run(chain, tlb, h, bus, fa, fa);
         }
         slow(chain, tlb, h, bus, d, fa, fb)
     }
@@ -688,7 +688,7 @@ mod native {
         if fs_dirty(h) {
             let x = h.rx_u(di.rs1);
             set_fr(h, di.rd, if DBL { x } else { box_s(x as u32) });
-            return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+            return nx.run(chain, tlb, h, bus, fa, fa);
         }
         slow(chain, tlb, h, bus, d, fa, fb)
     }

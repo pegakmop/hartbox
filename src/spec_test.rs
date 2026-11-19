@@ -68,7 +68,7 @@ fn run(ops: &[DInsn], step: Step, in_ram: bool) -> (Hart, u64) {
     hart.block_pc = 0x1000;
     // No chaining: `finish` hands the count back at the terminator.
     hart.break_chain();
-    let retired = unsafe { step(Chain::from_hart(&hart), hart.ltlb_cur, &mut hart, &mut bus, ops.as_ptr(), 0, 0) };
+    let retired = unsafe { crate::block::invoke(step, Chain::from_hart(&hart), hart.ltlb_cur, &mut hart, &mut bus, ops.as_ptr(), 0, 0) };
     (hart, retired)
 }
 
@@ -157,7 +157,7 @@ fn muldiv_steps_match_the_interpreter() {
                     fast.pc = 0x1000;
                     fast.block_pc = 0x1000;
                     fast.break_chain();
-                    let n = unsafe { (ops_v[0].step.unwrap())(Chain::from_hart(&fast), fast.ltlb_cur, &mut fast, &mut bus, ops_v.as_ptr(), 0, 0) };
+                    let n = unsafe { crate::block::invoke(ops_v[0].step.unwrap(), Chain::from_hart(&fast), fast.ltlb_cur, &mut fast, &mut bus, ops_v.as_ptr(), 0, 0) };
                     assert_eq!(n, 1);
                     assert_eq!(slow.x, fast.x, "{op:?} {a:#x} {b:#x} rd={rd}");
                 }

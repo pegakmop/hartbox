@@ -23,12 +23,15 @@ use crate::insn::{decode16, decode32, DInsn, DecodeCache, Op, Step};
 use crate::mmu::Access;
 
 mod bulk;
+mod dispatch;
 mod fusion;
 mod idioms;
 mod linear_memory;
 mod writeback;
 #[cfg(test)]
 mod overhaul_tests;
+pub(crate) use dispatch::{invoke, pre1, pre2, pre3, pre4, pre5, pre6, pre7, pre8};
+use dispatch::{operands, PRELOAD_OPERANDS};
 use fusion::{commute_for_forwarding, first_forward, forward_store, jump_step, memory_with_gap, overwrite_pair, pair_step, quad_step, triple_step, xbr_step};
 
 /// Longest block, in instructions.
@@ -177,7 +180,8 @@ struct LinkSlot {
     pc: Cell<u64>,
     /// `(translation epoch, code epoch)` of the hart when the link was made.
     stamp: Cell<u64>,
-    target: Cell<*const Block>,
+    /// The first threaded instruction, immediately after the successor header.
+    entry: Cell<*const DInsn>,
 }
 
 impl LinkSlot {
@@ -185,13 +189,13 @@ impl LinkSlot {
         LinkSlot {
             pc: Cell::new(u64::MAX),
             stamp: Cell::new(u64::MAX),
-            target: Cell::new(ptr::null()),
+            entry: Cell::new(ptr::null()),
         }
     }
 
     #[inline(always)]
-    fn get(&self, pc: u64, stamp: u64) -> Option<*const Block> {
-        (self.pc.get() == pc && self.stamp.get() == stamp).then(|| self.target.get())
+    fn get(&self, pc: u64, stamp: u64) -> Option<*const DInsn> {
+        (self.pc.get() == pc && self.stamp.get() == stamp).then(|| self.entry.get())
     }
 }
 
@@ -205,21 +209,21 @@ impl Block {
 
     /// The successor at `pc`, if this block linked to it and the link still holds.
     #[inline(always)]
-    fn follow(&self, pc: u64, stamp: u64) -> Option<(&LinkSlot, *const Block)> {
+    fn follow(&self, pc: u64, stamp: u64) -> Option<(&LinkSlot, *const DInsn)> {
         self.links.iter().find_map(|slot| slot.get(pc, stamp).map(|target| (slot, target)))
     }
 
-    /// Remember `target` as the successor at `pc`, most recent first.
-    fn link(&self, pc: u64, stamp: u64, target: *const Block) -> &LinkSlot {
+    /// Remember the successor's first instruction at `pc`, most recent first.
+    fn link(&self, pc: u64, stamp: u64, entry: *const DInsn) -> &LinkSlot {
         let [first, second] = &self.links;
         if first.pc.get() != pc {
             second.pc.set(first.pc.get());
             second.stamp.set(first.stamp.get());
-            second.target.set(first.target.get());
+            second.entry.set(first.entry.get());
         }
         first.pc.set(pc);
         first.stamp.set(stamp);
-        first.target.set(target);
+        first.entry.set(entry);
         first
     }
 }
@@ -390,7 +394,11 @@ impl Hart {
         }
         // The decode buffer lives in the hart, so a build allocates nothing.
         let mut ops = std::mem::take(&mut self.build_ops);
-        let gen = decode_page_block(bus, pa, self.id, &mut ops, &mut self.decode_cache);
+        let gen = if bus.mt.is_some() {
+            decode_page_block::<true>(bus, pa, self.id, &mut ops, &mut self.decode_cache)
+        } else {
+            decode_page_block::<false>(bus, pa, self.id, &mut ops, &mut self.decode_cache)
+        };
         phase!(0);
         let Some(gen) = gen else {
             self.build_ops = ops;
@@ -520,6 +528,11 @@ impl Hart {
                     i += 2;
                     continue;
                 }
+            }
+            if let Some(step) = idioms::integer_result_pair(&ops[i], &ops[i + 1]) {
+                plan[i] = Some(step);
+                i += 2;
+                continue;
             }
             if skip & 2 == 0 && i + 4 < n && !flow[i] && !flow[i + 1] && !flow[i + 2] && !flow[i + 3]
                 && fuses(&ops[i]) && fuses(&ops[i + 1]) && fuses(&ops[i + 2]) && fuses(&ops[i + 3])
@@ -746,12 +759,13 @@ fn commute_operands(ops: &mut [DInsn], i: usize) {
 /// Decode from a translated, aligned RAM address. A RAM page is complete, and
 /// the page limit is checked before either halfword load, so no byte needs to
 /// go through the MMIO dispatcher or repeat the RAM bounds check.
-fn decode_page_block(bus: &Bus, pa: u64, hart: u64, ops: &mut Vec<DInsn>, cache: &mut DecodeCache) -> Option<u32> {
+fn decode_page_block<const THREADED: bool>(
+    bus: &Bus, pa: u64, hart: u64, ops: &mut Vec<DInsn>, cache: &mut DecodeCache,
+) -> Option<u32> {
     let off = Bus::ram_offset(pa);
     let ppn = off >> 12;
     let host = bus.ram.as_ptr() as usize + off;
     let page_left = 4096 - (off & 0xfff);
-    let mt = bus.mt.is_some();
     let mut raw = [0u16; MAX_BLOCK * 2];
     // Concurrent modification can force retries. Fall back to one uncached
     // instruction if the page stays busy, so a writer cannot stall the hart.
@@ -772,12 +786,12 @@ fn decode_page_block(bus: &Bus, pa: u64, hart: u64, ops: &mut Vec<DInsn>, cache:
                     // The high half needs a separate instruction translation.
                     break;
                 }
-                if mt {
+                if THREADED {
                     raw[at / 2 + 1] = (word >> 16) as u16;
                 }
             }
             let mut d = cache.decode(word);
-            if mt {
+            if THREADED {
                 d.op = threaded_fence(d.op);
                 raw[at / 2] = lo;
             }
@@ -789,7 +803,9 @@ fn decode_page_block(bus: &Bus, pa: u64, hart: u64, ops: &mut Vec<DInsn>, cache:
                     crate::counters::inc(&crate::counters::OPS_UNIQUE);
                 }
             }
-            let end = d.op.ends_block() && !is_cond_branch(d.op);
+            let end = d.op.ends_block()
+                && !is_cond_branch(d.op)
+                && !(d.op == Op::Csr && crate::csr::trap_state_register(d.imm as u16));
             d.off = at as i32;
             d.index = ops.len() as u8;
             at += d.len as usize;
@@ -802,7 +818,7 @@ fn decode_page_block(bus: &Bus, pa: u64, hart: u64, ops: &mut Vec<DInsn>, cache:
             return None;
         }
         bus.mark_code(pa, at as u64, hart);
-        if !mt || (raw[..at / 2].iter().enumerate().all(|(i, &word)| {
+        if !THREADED || (raw[..at / 2].iter().enumerate().all(|(i, &word)| {
             // `mark_code` published the marks before this validation pass.
             unsafe { host_read::<2>(host + 2 * i) == word as u64 }
         }) && bus.page_gen[ppn].load(Acquire) == gen) {
@@ -856,8 +872,7 @@ fn unfolded_imm(d: &DInsn) -> i32 {
 // ------------------------------------------------------------ threaded steps
 //
 // A step runs one unit of a block and tail-calls the next one. Besides the hart,
-// the bus, the instruction and the pc, it takes `fa` and `fb`: the results of the
-// unit just before and of the one before that. A unit that writes a register also
+// the bus, the instruction and the pc, it takes `fa` and `fb`: the preceding results, or a result and preloaded operands. A unit that writes a register also
 // stores its result in the register file, so the register file is always
 // current. For each operand, `build_block` decides once whether it is read from
 // the register file or taken from `fa` or `fb`, so no run-time test is needed.
@@ -1037,7 +1052,7 @@ pub(crate) unsafe fn spec_step_at(chain: Chain, tlb: *mut crate::hart::FastTlb,
     k: usize,
 ) -> u64 {
     let at = d.add(k);
-    STEPS[(*at).op as usize](chain, tlb, h, bus, at, 0, 0)
+    invoke(STEPS[(*at).op as usize], chain, tlb, h, bus, at, 0, 0)
 }
 
 const fn is_alu(op: u8) -> bool {
@@ -1245,8 +1260,9 @@ unsafe fn block_of(d: *const DInsn) -> *const Block {
 impl PendingLink {
     /// The caller validated both the source and the resolved destination's stamp.
     unsafe fn fill(self, target: *const Block) {
-        let slot = (*self.source).link(self.target_pc, self.stamp, target);
-        self.edge.cache(slot, target);
+        let entry = Block::ops_ptr(target);
+        let slot = (*self.source).link(self.target_pc, self.stamp, entry);
+        self.edge.cache(slot, entry);
     }
 }
 
@@ -1267,14 +1283,14 @@ impl Edge {
     /// the stamped slot and checks its PC as well, since the slot can be reused
     /// or the source block can run under a different virtual alias.
     #[inline(always)]
-    unsafe fn cache(self, slot: &LinkSlot, target: *const Block) {
+    unsafe fn cache(self, slot: &LinkSlot, entry: *const DInsn) {
         if !self.0.is_null() {
             let checked = self.0.addr() & LINK_CHECKED != 0;
             let d = self.0.map_addr(|address| address & !LINK_CHECKED);
             let link = if checked {
                 slot as *const LinkSlot as usize | LINK_CHECKED
             } else {
-                Block::ops_ptr(target) as usize
+                entry as usize
             };
             (*d).link.set(link);
         }
@@ -1345,7 +1361,7 @@ unsafe fn finish_indirect_to(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &m
             crate::counters::inc(&crate::counters::LINK_HIT);
             crate::counters::inc(&crate::counters::BLOCKS_CHAINED);
             let state = Chain::enter(h, target, remaining);
-            return go_tlb(state, tlb, h, bus, Block::ops_ptr(next), 0, 0);
+            return go_tlb(state, tlb, h, bus, next, 0, 0);
         }
         h.pc = target;
         return follow_or_return(tlb, h, bus, remaining, d, Edge::INDIRECT);
@@ -1418,7 +1434,7 @@ pub(crate) unsafe fn finish_direct_to(
             link as *const DInsn
         } else {
             let slot = &*((link & !LINK_CHECKED) as *const LinkSlot);
-            slot.get(target, h.cache_stamp).map_or(ptr::null(), |block| Block::ops_ptr(block))
+            slot.get(target, h.cache_stamp).unwrap_or(ptr::null())
         };
         if !next.is_null() {
             crate::counters::inc(&crate::counters::LINK_HIT);
@@ -1483,12 +1499,12 @@ unsafe fn follow_or_return(tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &m
     } else if let Some(next) = h.bcache_lookup(pc, stamp) {
         crate::counters::inc(&crate::counters::BCACHE_HIT);
         pending.fill(next);
-        next
+        Block::ops_ptr(next)
     } else {
         match revalidate(h, bus, cur, stamp) {
             Some(next) => {
                 pending.fill(next);
-                next
+                Block::ops_ptr(next)
             }
             None => {
                 crate::counters::inc(&crate::counters::LINK_MISS);
@@ -1499,7 +1515,7 @@ unsafe fn follow_or_return(tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &m
     };
     crate::counters::inc(&crate::counters::BLOCKS_CHAINED);
     let next_chain = Chain::enter(h, pc, remaining);
-    go_tlb(next_chain, tlb, h, bus, Block::ops_ptr(next), 0, 0)
+    go_tlb(next_chain, tlb, h, bus, next, 0, 0)
 }
 
 /// A cached target from the same code epoch still exists. Translate once and
@@ -1511,7 +1527,11 @@ unsafe fn revalidate(h: &mut Hart, bus: &mut Bus, cur: &Block, stamp: u64) -> Op
     let mut cand: *const Block = ptr::null();
     for slot in &cur.links {
         if slot.pc.get() == pc && slot.stamp.get() as u32 == code {
-            cand = slot.target.get();
+            // Every linked entry starts immediately after its owning header.
+            let entry = slot.entry.get();
+            if !entry.is_null() {
+                cand = entry.cast::<Block>().sub(1);
+            }
             break;
         }
     }
@@ -1540,7 +1560,8 @@ unsafe fn go(h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, fb: u64) -> 
 }
 
 /// Run the unit at `d`, preserving the active TLB and (on ARM64) the count at
-/// this block's entry. `fa` and `fb` are results of the preceding two units.
+/// this block's entry. The native dispatch supplies the current operands in
+/// the argument that otherwise holds the second forwarded result.
 #[inline(always)]
 pub(crate) unsafe fn go_tlb(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, fb: u64) -> u64 {
     crate::counters::inc_op((*d).op as u8);
@@ -1569,7 +1590,7 @@ pub(crate) unsafe fn go_tlb(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mu
     }
     // SAFETY: every instruction of a built block has its step set, and the
     // terminator is never run past.
-    (*d).step.unwrap_unchecked()(chain, tlb, h, bus, d, fa, fb)
+    invoke((*d).step.unwrap_unchecked(), chain, tlb, h, bus, d, fa, fb)
 }
 
 /// Record the run starting at `d`, for template mining. Cold and never inlined:
@@ -1626,52 +1647,6 @@ unsafe fn sample_run_at(d: *const DInsn) {
     }
 }
 
-/// Load the step of the unit that follows the one running (`pre1` for the next
-/// instruction, `pre2` for the one after the next, and so on). Handlers call this first
-/// thing, before any other work: the dispatch at the end of a handler is an indirect
-/// branch that the CPU can only confirm once this load is done, so a load issued at the
-/// top has long finished when the branch is reached, and a mispredicted dispatch is found
-/// out sooner. The compiler would otherwise place the load right before the branch.
-macro_rules! pre_fn {
-    ($name:ident, $count:literal) => {
-        #[inline(always)]
-        pub(crate) unsafe fn $name(d: *const DInsn) -> Step {
-            // A counters build dispatches through `go`, which does the counting.
-            #[cfg(feature = "counters")]
-            {
-                let _ = d;
-                go_step as Step
-            }
-            #[cfg(all(not(feature = "counters"), target_arch = "aarch64"))]
-            {
-                let s: usize;
-                core::arch::asm!("ldr {0}, [{1}, #{2}]", out(reg) s, in(reg) d,
-                    const $count * std::mem::size_of::<DInsn>() + std::mem::offset_of!(DInsn, step),
-                    options(nostack, preserves_flags));
-                core::mem::transmute::<usize, Step>(s)
-            }
-            #[cfg(all(not(feature = "counters"), not(target_arch = "aarch64")))]
-            {
-                (*d.add($count)).step.unwrap_unchecked()
-            }
-        }
-    };
-}
-pre_fn!(pre1, 1);
-pre_fn!(pre2, 2);
-pre_fn!(pre3, 3);
-pre_fn!(pre4, 4);
-pre_fn!(pre5, 5);
-pre_fn!(pre6, 6);
-pre_fn!(pre7, 7);
-pre_fn!(pre8, 8);
-
-/// `go` as a step, for the counters build, whose hoisted dispatches must still be counted.
-#[cfg(feature = "counters")]
-unsafe fn go_step(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, fb: u64) -> u64 {
-    go_tlb(chain, tlb, h, bus, d, fa, fb)
-}
-
 /// Run the unit after `d`, which is at `pc`. `res` is what `d` wrote to its
 /// destination (0 if it wrote none), and `fa` is the value `d` itself received
 /// as its `fa`.
@@ -1685,7 +1660,7 @@ unsafe fn advance(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bu
 #[inline(never)]
 unsafe fn step_nop(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, _fb: u64) -> u64 {
     let nx = pre1(d);
-    nx(chain, tlb, h, bus, d.add(1), fa, fa)
+    nx.run(chain, tlb, h, bus, fa, fa)
 }
 
 /// `fence` with several host threads: a full barrier, so the order the guest asked for is
@@ -1694,7 +1669,7 @@ unsafe fn step_nop(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, b
 unsafe fn step_fence_mt(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, _fb: u64) -> u64 {
     std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
     let nx = pre1(d);
-    nx(chain, tlb, h, bus, d.add(1), fa, fa)
+    nx.run(chain, tlb, h, bus, fa, fa)
 }
 
 /// `fence.i` with several host threads: a barrier, then take in the pages other harts have
@@ -1708,7 +1683,7 @@ unsafe fn step_fence_i_mt(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut 
         return stop_after(chain, h, d);
     }
     let nx = pre1(d);
-    nx(chain, tlb, h, bus, d.add(1), fa, fa)
+    nx.run(chain, tlb, h, bus, fa, fa)
 }
 
 /// Block terminator: the fall-through pc is `pc`.
@@ -2117,12 +2092,12 @@ fn div_rem<const OP: u8>(a: u64, b: u64) -> u64 {
 /// `mulh`, `div`, `rem` and the like: a leaf step, so they no longer pay for the
 /// interpreter's call and its frame.
 #[inline(never)]
-unsafe fn step_muldiv<const OP: u8>(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, _fb: u64) -> u64 {
+unsafe fn step_muldiv<const OP: u8>(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, fb: u64) -> u64 {
     let nx = pre1(d);
-    let di = &*d;
-    let r = muldiv::<OP>(h.rx_u(di.rs1), h.rx_u(di.rs2));
-    h.wx_u(di.rd, r);
-    nx(chain, tlb, h, bus, d.add(1), fa, fa)
+    let (rd, rs1, rs2, _) = operands(d, fb);
+    let r = muldiv::<OP>(h.rx_u(rs1), h.rx_u(rs2));
+    h.wx_u(rd, r);
+    nx.run(chain, tlb, h, bus, fa, fa)
 }
 
 /// Whether the branch `OP` is taken on `a` and `b`.
@@ -2255,12 +2230,12 @@ unsafe fn step_alu<const OP: u8, const SA: u8, const SB: u8>(chain: Chain, tlb: 
     fb: u64,
 ) -> u64 {
     let nx = pre1(d);
-    let di = &*d;
-    let x = operand::<SA>(h, di.rs1, fa, fb);
-    let y = operand::<SB>(h, di.rs2, fa, fb);
+    let (rd, rs1, rs2, _) = operands(d, fb);
+    let x = operand::<SA>(h, rs1, fa, fb);
+    let y = operand::<SB>(h, rs2, fa, fb);
     let r = alu::<OP>(x, y);
-    h.set_x(di.rd, r);
-    nx(chain, tlb, h, bus, d.add(1), r, fa)
+    h.set_x(rd, r);
+    nx.run(chain, tlb, h, bus, r, fa)
 }
 
 /// An integer ALU operation on a register and the immediate. Its destination is
@@ -2274,30 +2249,30 @@ unsafe fn step_alui<const OP: u8, const SA: u8>(chain: Chain, tlb: *mut crate::h
     fb: u64,
 ) -> u64 {
     let nx = pre1(d);
-    let di = &*d;
-    let x = operand::<SA>(h, di.rs1, fa, fb);
-    let r = alu::<OP>(x, di.imm as u64);
-    h.set_x(di.rd, r);
-    nx(chain, tlb, h, bus, d.add(1), r, fa)
+    let (rd, rs1, _, imm) = operands(d, fb);
+    let x = operand::<SA>(h, rs1, fa, fb);
+    let r = alu::<OP>(x, imm as u64);
+    h.set_x(rd, r);
+    nx.run(chain, tlb, h, bus, r, fa)
 }
 
 #[inline(never)]
 unsafe fn step_move<const WORD: bool, const SA: u8>(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, fb: u64) -> u64 {
     let nx = pre1(d);
-    let di = &*d;
-    let value = operand::<SA>(h, di.rs1, fa, fb);
+    let (rd, rs1, _, _) = operands(d, fb);
+    let value = operand::<SA>(h, rs1, fa, fb);
     let value = if WORD { sx32(value as u32) } else { value };
-    h.set_x(di.rd, value);
-    nx(chain, tlb, h, bus, d.add(1), value, fa)
+    h.set_x(rd, value);
+    nx.run(chain, tlb, h, bus, value, fa)
 }
 
 #[inline(never)]
-unsafe fn step_lui(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, _fb: u64) -> u64 {
+unsafe fn step_lui(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus, d: *const DInsn, fa: u64, fb: u64) -> u64 {
     let nx = pre1(d);
-    let di = &*d;
-    let v = di.imm as u64;
-    h.set_x(di.rd, v);
-    nx(chain, tlb, h, bus, d.add(1), v, fa)
+    let (rd, _, _, imm) = operands(d, fb);
+    let v = imm as u64;
+    h.set_x(rd, v);
+    nx.run(chain, tlb, h, bus, v, fa)
 }
 
 #[inline(never)]
@@ -2306,7 +2281,7 @@ unsafe fn step_auipc(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart,
     let di = &*d;
     let v = pc_of(chain, h, d).wrapping_add(di.imm as u64);
     h.set_x(di.rd, v);
-    nx(chain, tlb, h, bus, d.add(1), v, fa)
+    nx.run(chain, tlb, h, bus, v, fa)
 }
 
 /// A load of `N` bytes from `rs1 + imm`. Its destination is never `x0`: `step_of` gives
@@ -2320,13 +2295,13 @@ unsafe fn step_load<const N: usize, const SIGNED: bool, const SA: u8>(chain: Cha
     fb: u64,
 ) -> u64 {
     let nx = pre1(d);
-    let di = &*d;
-    let va = operand::<SA>(h, di.rs1, fa, fb).wrapping_add(di.imm as u64);
+    let (rd, rs1, _, imm) = operands(d, fb);
+    let va = operand::<SA>(h, rs1, fa, fb).wrapping_add(imm as u64);
     if let Some(v) = tlb_load::<N>(tlb, h, va) {
         crate::counters::inc(&crate::counters::FAST_LOAD_HIT);
         let r = extend::<N, SIGNED>(v);
-        h.set_x(di.rd, r);
-        return nx(chain, tlb, h, bus, d.add(1), r, fa);
+        h.set_x(rd, r);
+        return nx.run(chain, tlb, h, bus, r, fa);
     }
     load_slow::<N, SIGNED>(chain, tlb, h, bus, d, va, fa)
 }
@@ -2341,12 +2316,12 @@ unsafe fn step_store<const N: usize, const SA: u8, const SB: u8>(chain: Chain, t
     fb: u64,
 ) -> u64 {
     let nx = pre1(d);
-    let di = &*d;
-    let va = operand::<SA>(h, di.rs1, fa, fb).wrapping_add(di.imm as u64);
-    let v = operand::<SB>(h, di.rs2, fa, fb);
+    let (_, rs1, rs2, imm) = operands(d, fb);
+    let va = operand::<SA>(h, rs1, fa, fb).wrapping_add(imm as u64);
+    let v = operand::<SB>(h, rs2, fa, fb);
     if tlb_store::<N>(tlb, h, va, v) {
         crate::counters::inc(&crate::counters::FAST_STORE_HIT);
-        return nx(chain, tlb, h, bus, d.add(1), fa, fa);
+        return nx.run(chain, tlb, h, bus, fa, fa);
     }
     store_slow::<N>(chain, tlb, h, bus, d, va, fa)
 }
@@ -2392,7 +2367,7 @@ unsafe fn step_br_flow<const OP: u8, const SA: u8, const SB: u8>(chain: Chain, t
     if taken::<OP>(a, b) {
         finish_direct_to(chain, tlb, h, bus, d, retired(h, d) + 1, chain.pc(h).wrapping_add(di.imm as i64 as u64), fa, fb)
     } else {
-        nx(chain, tlb, h, bus, d.add(1), fa, fa)
+        nx.run(chain, tlb, h, bus, fa, fa)
     }
 }
 
@@ -2574,7 +2549,8 @@ fn source(ops: &[DInsn], opaque: &[bool], i: usize, r: u8) -> u8 {
     if r == 0 {
         return ZERO;
     }
-    for (back, src) in [(1, FA), (2, FB)] {
+    let depth = if PRELOAD_OPERANDS { 1 } else { 2 };
+    for (back, src) in [(1, FA), (2, FB)].into_iter().take(depth) {
         if i >= back && ops[i - back].rd == r {
             let j = i - back;
             return if !opaque[j] && produces(ops[j].op) { src } else { MEM };
@@ -2717,7 +2693,7 @@ unsafe fn step_const2(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart
     let nx = pre2(d);
     let di = &*d;
     h.set_x(di.rd, di.imm as u64);
-    nx(chain, tlb, h, bus, d.add(2), di.imm as u64, 0)
+    nx.run(chain, tlb, h, bus, di.imm as u64, 0)
 }
 
 /// A fused `auipc`+`addi`: `rd` gets the pc of the `auipc` plus the constant in `imm`.
@@ -2727,7 +2703,7 @@ unsafe fn step_pcconst2(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Ha
     let di = &*d;
     let v = pc_of(chain, h, d).wrapping_add(di.imm as u64);
     h.set_x(di.rd, v);
-    nx(chain, tlb, h, bus, d.add(2), v, 0)
+    nx.run(chain, tlb, h, bus, v, 0)
 }
 
 /// A fused `slli rd, rs, 32` + `srli rd, rd, 32`.
@@ -2737,7 +2713,7 @@ unsafe fn step_zext2(chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart,
     let di = &*d;
     let v = h.rx_u(di.rs1) & 0xffff_ffff;
     h.set_x(di.rd, v);
-    nx(chain, tlb, h, bus, d.add(2), v, 0)
+    nx.run(chain, tlb, h, bus, v, 0)
 }
 
 /// Whether `op` is a load.
@@ -2851,30 +2827,33 @@ unsafe fn step_memory_run<const N: usize, const W: usize, const SIGNED: bool, co
                 last = value;
             }
         }
-        return nx(chain, tlb, h, bus, d.add(N), last, previous);
+        return nx.run(chain, tlb, h, bus, last, previous);
     }
     // Nothing has executed: hand the first access to the normal step so faults,
     // MMIO, page boundaries and decoded-code writes keep their precise order.
-    STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb)
+    invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb)
 }
 
-/// Two accesses of differing kinds can still share one translation when they
-/// have the same base and direction. Guard the complete span around the wider
-/// access, which also proves alignment of the narrower one.
+/// Two accesses of differing kinds can share one translation when they have
+/// the same base. Guard the complete span around the wider access, which also
+/// proves alignment of the narrower one.
 fn mixed_memory_pair(a: &DInsn, b: &DInsn) -> Option<Step> {
     if a.op == b.op || a.rs1 != b.rs1 {
         return None;
     }
     let kind = |op: Op, first: Op| (op as usize).wrapping_sub(first as usize);
-    let (ka, kb, step) = if is_load(a.op) && is_load(b.op) {
-        if a.rd == 0 || b.rd == 0 || a.rd == a.rs1 {
-            return None;
-        }
-        let (ka, kb) = (kind(a.op, Op::Lb), kind(b.op, Op::Lb));
-        (ka, kb, MIXED_LOADS[ka][kb])
-    } else {
-        let (ka, kb) = (kind(a.op, Op::Sb), kind(b.op, Op::Sb));
-        (ka, kb, *MIXED_STORES.get(ka)?.get(kb)?)
+    let load_a = is_load(a.op);
+    let load_b = is_load(b.op);
+    if (load_a && (a.rd == 0 || a.rd == a.rs1)) || (load_b && b.rd == 0) {
+        return None;
+    }
+    let ka = kind(a.op, if load_a { Op::Lb } else { Op::Sb });
+    let kb = kind(b.op, if load_b { Op::Lb } else { Op::Sb });
+    let step = match (load_a, load_b) {
+        (true, true) => MIXED_LOADS[ka][kb],
+        (true, false) => *LOAD_STORE[ka].get(kb)?,
+        (false, true) => STORE_LOAD.get(ka)?[kb],
+        (false, false) => *MIXED_STORES.get(ka)?.get(kb)?,
     };
     let (wa, wb) = (1i64 << (ka & 3), 1i64 << (kb & 3));
     let (oa, ob) = (i64::from(a.imm), i64::from(b.imm));
@@ -2894,15 +2873,17 @@ fn mixed_memory_pair(a: &DInsn, b: &DInsn) -> Option<Step> {
 }
 
 macro_rules! mixed_steps {
-    ($store:literal; [$($a:literal),*]; $kinds:tt) => {
-        [$(mixed_steps!(@row $store; $a; $kinds)),*]
+    ($store_a:literal, $store_b:literal; [$($a:literal),*]; $kinds:tt) => {
+        [$(mixed_steps!(@row $store_a, $store_b; $a; $kinds)),*]
     };
-    (@row $store:literal; $a:literal; [$($b:literal),*]) => {
-        [$(step_mixed_memory::<$a, $b, $store> as Step),*]
+    (@row $store_a:literal, $store_b:literal; $a:literal; [$($b:literal),*]) => {
+        [$(step_mixed_memory::<$a, $b, $store_a, $store_b> as Step),*]
     };
 }
-const MIXED_LOADS: [[Step; 7]; 7] = mixed_steps!(false; [0, 1, 2, 3, 4, 5, 6]; [0, 1, 2, 3, 4, 5, 6]);
-const MIXED_STORES: [[Step; 4]; 4] = mixed_steps!(true; [0, 1, 2, 3]; [0, 1, 2, 3]);
+const MIXED_LOADS: [[Step; 7]; 7] = mixed_steps!(false, false; [0, 1, 2, 3, 4, 5, 6]; [0, 1, 2, 3, 4, 5, 6]);
+const LOAD_STORE: [[Step; 4]; 7] = mixed_steps!(false, true; [0, 1, 2, 3, 4, 5, 6]; [0, 1, 2, 3]);
+const STORE_LOAD: [[Step; 7]; 4] = mixed_steps!(true, false; [0, 1, 2, 3]; [0, 1, 2, 3, 4, 5, 6]);
+const MIXED_STORES: [[Step; 4]; 4] = mixed_steps!(true, true; [0, 1, 2, 3]; [0, 1, 2, 3]);
 
 #[inline(always)]
 unsafe fn access_mixed<const KIND: u8, const STORE: bool>(h: &mut Hart, d: &DInsn, base: u64) -> u64 {
@@ -2931,7 +2912,7 @@ unsafe fn access_mixed<const KIND: u8, const STORE: bool>(h: &mut Hart, d: &DIns
 }
 
 #[inline(never)]
-unsafe fn step_mixed_memory<const A: u8, const B: u8, const STORE: bool>(
+unsafe fn step_mixed_memory<const A: u8, const B: u8, const STORE_A: bool, const STORE_B: bool>(
     chain: Chain, tlb: *mut crate::hart::FastTlb, h: &mut Hart, bus: &mut Bus,
     d: *const DInsn, fa: u64, fb: u64,
 ) -> u64 {
@@ -2939,7 +2920,9 @@ unsafe fn step_mixed_memory<const A: u8, const B: u8, const STORE: bool>(
     let metadata = (*d).link.get();
     let base = h.rx_u((*d).rs1);
     let va = base.wrapping_add(metadata as u32 as i32 as i64 as u64);
-    let table = if STORE { tlb.add(crate::hart::FTLB_SETS) } else { tlb };
+    // The store TLB excludes decoded code, and a writable Sv39 leaf is
+    // always readable. One store mapping safely covers both access kinds.
+    let table = if STORE_A || STORE_B { tlb.add(crate::hart::FTLB_SETS) } else { tlb };
     let entry = tlb_entry(table, va);
     let shift = u32::from((A & 3).max(B & 3));
     let delta = va.wrapping_sub(entry.tag).rotate_right(shift);
@@ -2947,11 +2930,11 @@ unsafe fn step_mixed_memory<const A: u8, const B: u8, const STORE: bool>(
     let range = (metadata >> 48) as u64;
     if entry.tag != u64::MAX && delta.wrapping_sub(u64::from(min)) <= range {
         let host = base.wrapping_add(entry.addend);
-        let first = access_mixed::<A, STORE>(h, &*d, host);
-        let last = access_mixed::<B, STORE>(h, &*d.add(1), host);
-        return next(chain, tlb, h, bus, d.add(2), last, first);
+        let first = access_mixed::<A, STORE_A>(h, &*d, host);
+        let last = access_mixed::<B, STORE_B>(h, &*d.add(1), host);
+        return next.run(chain, tlb, h, bus, last, first);
     }
-    STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb)
+    invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb)
 }
 
 #[cfg(test)]
@@ -3190,8 +3173,8 @@ mod memory_run_tests {
                                 h.ftlb_fill(bus, base, base, true);
                             }
                         }
-                        let na = unsafe { step(Chain::from_hart(&a), a.ltlb_cur, &mut a, &mut ba, ops.as_ptr(), 0, 0) };
-                        let nb = unsafe { ops[0].step.unwrap()(Chain::from_hart(&b), b.ltlb_cur, &mut b, &mut bb, ops.as_ptr(), 0, 0) };
+                        let na = unsafe { invoke(step, Chain::from_hart(&a), a.ltlb_cur, &mut a, &mut ba, ops.as_ptr(), 0, 0) };
+                        let nb = unsafe { invoke(ops[0].step.unwrap(), Chain::from_hart(&b), b.ltlb_cur, &mut b, &mut bb, ops.as_ptr(), 0, 0) };
                         assert_eq!(a.x, b.x, "{op:?} n={n} base={base:#x} cached={cached}");
                         assert_eq!((a.pc, a.mepc, a.mcause, a.mtval, na), (b.pc, b.mepc, b.mcause, b.mtval, nb));
                         assert_eq!(ba.ram, bb.ram, "{op:?} n={n} base={base:#x}");
@@ -3230,7 +3213,7 @@ mod memory_run_tests {
                 hart.x[4] = base;
                 hart.ftlb_fill(&bus, base - 3, base - 3, false);
                 hart.ftlb_fill(&bus, base, base, false);
-                let n = unsafe { step(Chain::from_hart(&hart), hart.ltlb_cur, &mut hart, &mut bus, ops.as_ptr(), 0, 0) };
+                let n = unsafe { invoke(step, Chain::from_hart(&hart), hart.ltlb_cur, &mut hart, &mut bus, ops.as_ptr(), 0, 0) };
                 assert_eq!(n, 2);
                 assert_eq!(hart.x[5], (-111i64) as u64);
                 if base == RAM_BASE + 8192 {
@@ -3257,7 +3240,7 @@ mod memory_run_tests {
         let end = RAM_BASE + 4096;
         hart.block_pc = RAM_BASE;
         hart.x[3] = end - 8;
-        let n = unsafe { step(Chain::from_hart(&hart), hart.ltlb_cur, &mut hart, &mut bus, ops.as_ptr(), 0, 0) };
+        let n = unsafe { invoke(step, Chain::from_hart(&hart), hart.ltlb_cur, &mut hart, &mut bus, ops.as_ptr(), 0, 0) };
         assert_eq!((n, hart.x[4], hart.mepc, hart.mcause, hart.mtval), (2, end, RAM_BASE + 4, EXC_LOAD_ACCESS, end));
     }
 
@@ -3297,8 +3280,8 @@ mod memory_run_tests {
                                         hart.ftlb_fill(mem, address, address, true);
                                     }
                                 }
-                                let n = unsafe { step(Chain::from_hart(&h), h.ltlb_cur, &mut h, &mut bus, ops.as_ptr(), 0, 0) };
-                                let nr = unsafe { ops[0].step.unwrap()(Chain::from_hart(&r), r.ltlb_cur, &mut r, &mut rb, ops.as_ptr(), 0, 0) };
+                                let n = unsafe { invoke(step, Chain::from_hart(&h), h.ltlb_cur, &mut h, &mut bus, ops.as_ptr(), 0, 0) };
+                                let nr = unsafe { invoke(ops[0].step.unwrap(), Chain::from_hart(&r), r.ltlb_cur, &mut r, &mut rb, ops.as_ptr(), 0, 0) };
                                 assert_eq!(h.x, r.x, "{op:?} {jump:?} rd={rd} forward={forwarding}");
                                 assert_eq!((h.pc, h.mepc, h.mcause, h.mtval, h.ras_sp, n),
                                     (r.pc, r.mepc, r.mcause, r.mtval, r.ras_sp, nr));
@@ -3336,8 +3319,8 @@ mod memory_run_tests {
                             hart.block_pc = hart.pc; hart.break_chain();
                         }
                         let step = pcrel_jump(&ops[0], &ops[1]);
-                        let n = unsafe { step(Chain::from_hart(&h), h.ltlb_cur, &mut h, &mut bus, ops.as_ptr(), 0, 0) };
-                        let nr = unsafe { ops[0].step.unwrap()(Chain::from_hart(&r), r.ltlb_cur, &mut r, &mut rb, ops.as_ptr(), 0, 0) };
+                        let n = unsafe { invoke(step, Chain::from_hart(&h), h.ltlb_cur, &mut h, &mut bus, ops.as_ptr(), 0, 0) };
+                        let nr = unsafe { invoke(ops[0].step.unwrap(), Chain::from_hart(&r), r.ltlb_cur, &mut r, &mut rb, ops.as_ptr(), 0, 0) };
                         assert_eq!(h.x, r.x);
                         assert_eq!((h.pc, h.ras_sp, n), (r.pc, r.ras_sp, nr));
                     }

@@ -1,8 +1,8 @@
 //! Static fusion for integer operations, memory accesses and branches.
 
 use super::{
-    alu, extend, finish_direct_to, finish_jalr_to, host_read, host_write, is_alu, is_imm,
-    pc_of, pre2, pre3, pre4, produces, ras_push_at, retired, taken, tlb_entry, tlb_load,
+    alu, extend, finish_direct_to, finish_jalr_to, host_read, host_write, invoke, is_alu, is_imm,
+    operands, pc_of, pre2, pre3, pre4, produces, ras_push_at, retired, taken, tlb_entry, tlb_load,
     tlb_store, Chain, STEPS,
 };
 use crate::bus::Bus;
@@ -21,7 +21,7 @@ unsafe fn try_fast_v<const OP: u8>(
     h: &mut Hart,
     d: *const DInsn,
 ) -> Option<u64> {
-    try_fast_input::<OP, false, true>(chain, tlb, h, d, 0)
+    try_fast_input::<OP, false, true>(chain, tlb, h, d, 0, None)
 }
 
 /// `FORWARD` is selected when the block is built, so forwarding a dependency
@@ -33,32 +33,39 @@ unsafe fn try_fast_input<const OP: u8, const FORWARD: bool, const WRITE: bool>(
     h: &mut Hart,
     d: *const DInsn,
     value: u64,
+    prepared: Option<u64>,
 ) -> Option<u64> {
-    let di = &*d;
+    let (rd, rs1, rs2, imm) = match prepared {
+        Some(bits) => operands(d, bits),
+        None => {
+            let di = &*d;
+            (di.rd, di.rs1, di.rs2, di.imm)
+        }
+    };
     let is = |op: Op| OP == op as u8;
     if is_alu(OP) {
-        let x = if FORWARD { value } else { h.rx_u(di.rs1) };
+        let x = if FORWARD { value } else { h.rx_u(rs1) };
         let y = if is_imm(OP) {
-            di.imm as u64
+            imm as u64
         } else {
-            h.rx_u(di.rs2)
+            h.rx_u(rs2)
         };
         let r = alu::<OP>(x, y);
         if WRITE {
-            h.set_x(di.rd, r);
+            h.set_x(rd, r);
         }
         return Some(r);
     }
     if is(Op::Lui) {
         if WRITE {
-            h.set_x(di.rd, di.imm as u64);
+            h.set_x(rd, imm as u64);
         }
-        return Some(di.imm as u64);
+        return Some(imm as u64);
     }
     if is(Op::Auipc) {
-        let r = pc_of(chain, h, d).wrapping_add(di.imm as u64);
+        let r = pc_of(chain, h, d).wrapping_add(imm as u64);
         if WRITE {
-            h.set_x(di.rd, r);
+            h.set_x(rd, r);
         }
         return Some(r);
     }
@@ -85,7 +92,7 @@ unsafe fn try_fast_input<const OP: u8, const FORWARD: bool, const WRITE: bool>(
         } else {
             (1, false)
         };
-        let va = (if FORWARD { value } else { h.rx_u(di.rs1) }).wrapping_add(di.imm as u64);
+        let va = (if FORWARD { value } else { h.rx_u(rs1) }).wrapping_add(imm as u64);
         let raw = match w {
             8 => tlb_load::<8>(tlb, h, va),
             4 => tlb_load::<4>(tlb, h, va),
@@ -104,7 +111,7 @@ unsafe fn try_fast_input<const OP: u8, const FORWARD: bool, const WRITE: bool>(
             v
         };
         if WRITE {
-            h.set_x(di.rd, v);
+            h.set_x(rd, v);
         }
         return Some(v);
     }
@@ -118,8 +125,8 @@ unsafe fn try_fast_input<const OP: u8, const FORWARD: bool, const WRITE: bool>(
         } else {
             1
         };
-        let va = (if FORWARD { value } else { h.rx_u(di.rs1) }).wrapping_add(di.imm as u64);
-        let v = h.rx_u(di.rs2);
+        let va = (if FORWARD { value } else { h.rx_u(rs1) }).wrapping_add(imm as u64);
+        let v = h.rx_u(rs2);
         let ok = match w {
             8 => tlb_store::<8>(tlb, h, va, v),
             4 => tlb_store::<4>(tlb, h, va, v),
@@ -149,19 +156,19 @@ unsafe fn step_pair<const A: u8, const B: u8, const FORWARD: bool>(
     crate::counters::inc_op(A);
     crate::counters::inc_op(B);
     if !FORWARD && memory_width(A) != 0 && memory_width(B) != 0 {
-        if let Some((a, b)) = independent_memory::<A, B>(tlb, h, d) {
-            return nx(chain, tlb, h, bus, d.add(2), b, a);
+        if let Some((a, b)) = independent_memory::<A, B>(tlb, h, d, fb) {
+            return nx.run(chain, tlb, h, bus, b, a);
         }
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     }
-    let Some(a) = try_fast_v::<A>(chain, tlb, h, d) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(a) = try_fast_input::<A, false, true>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let d2 = d.add(1);
-    if let Some(b) = try_fast_input::<B, FORWARD, true>(chain, tlb, h, d2, a) {
-        return nx(chain, tlb, h, bus, d2.add(1), b, a);
+    if let Some(b) = try_fast_input::<B, FORWARD, true>(chain, tlb, h, d2, a, None) {
+        return nx.run(chain, tlb, h, bus, b, a);
     }
-    STEPS[B as usize](chain, tlb, h, bus, d2, a, fa)
+    invoke(STEPS[B as usize], chain, tlb, h, bus, d2, a, fa)
 }
 
 const fn memory_width(op: u8) -> usize {
@@ -183,11 +190,11 @@ const fn is_store(op: u8) -> bool {
 /// order.
 #[inline(always)]
 unsafe fn independent_memory<const A: u8, const B: u8>(
-    tlb: *mut FastTlb, h: &mut Hart, d: *const DInsn,
+    tlb: *mut FastTlb, h: &mut Hart, d: *const DInsn, packed: u64,
 ) -> Option<(u64, u64)> {
-    let a = &*d;
+    let (rd, rs1, rs2, imm) = operands(d, packed);
     let b = &*d.add(1);
-    let va = h.rx_u(a.rs1).wrapping_add_signed(i64::from(a.imm));
+    let va = h.rx_u(rs1).wrapping_add_signed(i64::from(imm));
     let vb = h.rx_u(b.rs1).wrapping_add_signed(i64::from(b.imm));
     let ea = tlb_entry(tlb.add(FTLB_SETS * usize::from(is_store(A))), va);
     let eb = tlb_entry(tlb.add(FTLB_SETS * usize::from(is_store(B))), vb);
@@ -196,16 +203,16 @@ unsafe fn independent_memory<const A: u8, const B: u8>(
     if miss_a | miss_b != 0 {
         return None;
     }
-    let first = memory_at::<A>(h, a, va.wrapping_add(ea.addend) as usize);
-    let last = memory_at::<B>(h, b, vb.wrapping_add(eb.addend) as usize);
+    let first = memory_at::<A>(h, rd, rs2, va.wrapping_add(ea.addend) as usize);
+    let last = memory_at::<B>(h, b.rd, b.rs2, vb.wrapping_add(eb.addend) as usize);
     Some((first, last))
 }
 
 #[inline(always)]
-unsafe fn memory_at<const OP: u8>(h: &mut Hart, d: &DInsn, host: usize) -> u64 {
+unsafe fn memory_at<const OP: u8>(h: &mut Hart, rd: u8, rs2: u8, host: usize) -> u64 {
     let width = memory_width(OP);
     if is_store(OP) {
-        let value = h.rx_u(d.rs2);
+        let value = h.rx_u(rs2);
         match width {
             1 => host_write::<1>(host, value),
             2 => host_write::<2>(host, value),
@@ -226,7 +233,7 @@ unsafe fn memory_at<const OP: u8>(h: &mut Hart, d: &DInsn, host: usize) -> u64 {
         op if op == Op::Lwu as u8 => value as u32 as u64,
         _ => value,
     };
-    h.set_x(d.rd, value);
+    h.set_x(rd, value);
     value
 }
 
@@ -305,14 +312,15 @@ unsafe fn step_memory_with_gap<const A: u8, const B: u8, const C: u8>(
     let entry = tlb_entry(tlb.add(FTLB_SETS * usize::from(is_store(A) || is_store(C))), va);
     let delta = va.wrapping_sub(entry.tag).rotate_right(memory_width(A).trailing_zeros());
     if entry.tag == u64::MAX || delta > (meta >> 48) as u64 {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     }
     let host = va.wrapping_add(entry.addend) as usize;
-    memory_at::<A>(h, first, host + usize::from((meta >> 32) as u8));
+    memory_at::<A>(h, first.rd, first.rs2, host + usize::from((meta >> 32) as u8));
     // The planner selects pure register operations, none of which can fail.
     let middle = try_fast_v::<B>(chain, tlb, h, d.add(1)).unwrap_unchecked();
-    let last = memory_at::<C>(h, &*d.add(2), host + usize::from((meta >> 40) as u8));
-    next(chain, tlb, h, bus, d.add(3), last, middle)
+    let tail = &*d.add(2);
+    let last = memory_at::<C>(h, tail.rd, tail.rs2, host + usize::from((meta >> 40) as u8));
+    next.run(chain, tlb, h, bus, last, middle)
 }
 
 /// The second operation consumes and overwrites the first operation's result.
@@ -328,15 +336,15 @@ unsafe fn step_overwrite<const A: u8, const B: u8>(
     fb: u64,
 ) -> u64 {
     let next = pre2(d);
-    let Some(a) = try_fast_input::<A, false, false>(chain, tlb, h, d, 0) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(a) = try_fast_input::<A, false, false>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let d2 = d.add(1);
-    if let Some(b) = try_fast_input::<B, true, true>(chain, tlb, h, d2, a) {
-        return next(chain, tlb, h, bus, d.add(2), b, a);
+    if let Some(b) = try_fast_input::<B, true, true>(chain, tlb, h, d2, a, None) {
+        return next.run(chain, tlb, h, bus, b, a);
     }
     h.set_x((*d).rd, a);
-    STEPS[B as usize](chain, tlb, h, bus, d2, a, fa)
+    invoke(STEPS[B as usize], chain, tlb, h, bus, d2, a, fa)
 }
 
 /// Three instructions in one dispatch. Both adjacent dependencies can use
@@ -353,18 +361,18 @@ unsafe fn step_triple<const A: u8, const B: u8, const C: u8, const AB: bool, con
 ) -> u64 {
     let nx = pre3(d);
     crate::counters::inc(&crate::counters::PAIRS);
-    let Some(a) = try_fast_v::<A>(chain, tlb, h, d) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(a) = try_fast_input::<A, false, true>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let d2 = d.add(1);
-    let Some(b) = try_fast_input::<B, AB, true>(chain, tlb, h, d2, a) else {
-        return STEPS[B as usize](chain, tlb, h, bus, d2, a, fa);
+    let Some(b) = try_fast_input::<B, AB, true>(chain, tlb, h, d2, a, None) else {
+        return invoke(STEPS[B as usize], chain, tlb, h, bus, d2, a, fa);
     };
     let d3 = d2.add(1);
-    if let Some(c) = try_fast_input::<C, BC, true>(chain, tlb, h, d3, b) {
-        return nx(chain, tlb, h, bus, d3.add(1), c, b);
+    if let Some(c) = try_fast_input::<C, BC, true>(chain, tlb, h, d3, b, None) {
+        return nx.run(chain, tlb, h, bus, c, b);
     }
-    STEPS[C as usize](chain, tlb, h, bus, d3, b, a)
+    invoke(STEPS[C as usize], chain, tlb, h, bus, d3, b, a)
 }
 
 /// Four instructions, A B C D, in one dispatch. Each half runs its fast path;
@@ -381,22 +389,22 @@ unsafe fn step_quad<const A: u8, const B: u8, const C: u8, const D: u8>(
 ) -> u64 {
     let nx = pre4(d);
     crate::counters::inc(&crate::counters::PAIRS);
-    let Some(a) = try_fast_v::<A>(chain, tlb, h, d) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(a) = try_fast_input::<A, false, true>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let d2 = d.add(1);
     let Some(b) = try_fast_v::<B>(chain, tlb, h, d2) else {
-        return STEPS[B as usize](chain, tlb, h, bus, d2, a, fa);
+        return invoke(STEPS[B as usize], chain, tlb, h, bus, d2, a, fa);
     };
     let d3 = d2.add(1);
     let Some(c) = try_fast_v::<C>(chain, tlb, h, d3) else {
-        return STEPS[C as usize](chain, tlb, h, bus, d3, b, a);
+        return invoke(STEPS[C as usize], chain, tlb, h, bus, d3, b, a);
     };
     let d4 = d3.add(1);
     if let Some(value) = try_fast_v::<D>(chain, tlb, h, d4) {
-        return nx(chain, tlb, h, bus, d4.add(1), value, c);
+        return nx.run(chain, tlb, h, bus, value, c);
     }
-    STEPS[D as usize](chain, tlb, h, bus, d4, c, b)
+    invoke(STEPS[D as usize], chain, tlb, h, bus, d4, c, b)
 }
 
 /// An instruction `A` that completes on a fast path, then the conditional branch
@@ -416,8 +424,8 @@ unsafe fn step_xbr<const A: u8, const OP: u8, const XF: u8>(
 ) -> u64 {
     let nx = pre2(d);
     crate::counters::inc(&crate::counters::PAIRS);
-    let Some(r) = try_fast_v::<A>(chain, tlb, h, d) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(r) = try_fast_input::<A, false, true>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let d2 = d.add(1);
     let di = &*d2;
@@ -444,7 +452,7 @@ unsafe fn step_xbr<const A: u8, const OP: u8, const XF: u8>(
             fb,
         );
     }
-    nx(chain, tlb, h, bus, d2.add(1), r, r)
+    nx.run(chain, tlb, h, bus, r, r)
 }
 
 /// A fast instruction followed by a jump. The old generic pair handed the
@@ -460,8 +468,8 @@ unsafe fn step_xjump<const A: u8, const INDIRECT: bool, const FORWARD: bool>(
     fa: u64,
     fb: u64,
 ) -> u64 {
-    let Some(value) = try_fast_v::<A>(chain, tlb, h, d) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(value) = try_fast_input::<A, false, true>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let j = d.add(1);
     let di = &*j;
@@ -642,16 +650,16 @@ unsafe fn step_forward_store<const A: u8, const B: u8, const N: usize, const BAS
     d: *const DInsn, fa: u64, fb: u64,
 ) -> u64 {
     let next = pre2(d);
-    let Some(value) = try_fast_v::<A>(chain, tlb, h, d) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(value) = try_fast_input::<A, false, true>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let store = &*d.add(1);
     let base = if BASE { value } else { h.rx_u(store.rs1) };
     let va = base.wrapping_add_signed(i64::from(store.imm));
     if tlb_store::<N>(tlb, h, va, value) {
-        return next(chain, tlb, h, bus, d.add(2), value, value);
+        return next.run(chain, tlb, h, bus, value, value);
     }
-    STEPS[B as usize](chain, tlb, h, bus, d.add(1), value, fa)
+    invoke(STEPS[B as usize], chain, tlb, h, bus, d.add(1), value, fa)
 }
 
 #[inline(always)]
@@ -730,20 +738,20 @@ unsafe fn overwrite_triple<const A: u8, const B: u8, const C: u8>(
     d: *const DInsn, fa: u64, fb: u64,
 ) -> u64 {
     let next = pre3(d);
-    let Some(a) = try_fast_input::<A, false, false>(chain, tlb, h, d, 0) else {
-        return STEPS[A as usize](chain, tlb, h, bus, d, fa, fb);
+    let Some(a) = try_fast_input::<A, false, false>(chain, tlb, h, d, 0, Some(fb)) else {
+        return invoke(STEPS[A as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let second = d.add(1);
-    let Some(b) = try_fast_input::<B, true, false>(chain, tlb, h, second, a) else {
+    let Some(b) = try_fast_input::<B, true, false>(chain, tlb, h, second, a, None) else {
         h.set_x((*d).rd, a);
-        return STEPS[B as usize](chain, tlb, h, bus, second, a, fa);
+        return invoke(STEPS[B as usize], chain, tlb, h, bus, second, a, fa);
     };
     let third = d.add(2);
-    if let Some(c) = try_fast_input::<C, true, true>(chain, tlb, h, third, b) {
-        return next(chain, tlb, h, bus, d.add(3), c, b);
+    if let Some(c) = try_fast_input::<C, true, true>(chain, tlb, h, third, b, None) {
+        return next.run(chain, tlb, h, bus, c, b);
     }
     h.set_x((*second).rd, b);
-    STEPS[C as usize](chain, tlb, h, bus, third, b, a)
+    invoke(STEPS[C as usize], chain, tlb, h, bus, third, b, a)
 }
 
 // Dense tables share one index per supported opcode. Each cell contains the

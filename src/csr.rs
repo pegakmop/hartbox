@@ -13,6 +13,16 @@ const MEDELEG_MASK: u64 = 0xB1FF;
 const MIDELEG_MASK: u64 = MIP_S_MASK;
 const SATP_PPN_MASK: u64 = (1 << 44) - 1;
 
+/// Trap bookkeeping registers have no effect on the current interrupt or
+/// translation state. Instructions accessing them can stay inside a block.
+pub(crate) fn trap_state_register(addr: u16) -> bool {
+    matches!(
+        addr,
+        CSR_SSCRATCH | CSR_SEPC | CSR_SCAUSE | CSR_STVAL |
+        CSR_MSCRATCH | CSR_MEPC | CSR_MCAUSE | CSR_MTVAL
+    )
+}
+
 #[inline(always)]
 fn illegal() -> Trap {
     Trap::new(EXC_ILLEGAL, 0)
@@ -191,8 +201,10 @@ impl Hart {
             0xB03..=0xB1F | 0xB23..=0xB3F | 0x323..=0x33F => {}
             _ => return Err(illegal()),
         }
-        self.irq_dirty = true;
-        self.break_chain();
+        if !trap_state_register(addr) {
+            self.irq_dirty = true;
+            self.break_chain();
+        }
         Ok(())
     }
 

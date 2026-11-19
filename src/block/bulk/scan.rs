@@ -1,5 +1,7 @@
 //! Batch sequential loads through one live RAM translation.
 
+use crate::block::invoke;
+
 use super::{
     extend, finish_direct_to, go_tlb, host_read, iterations_to_bound, pc_of, tlb_entry, Chain,
     STEPS,
@@ -85,7 +87,7 @@ unsafe fn step<const W: usize, const SIGNED: bool, const LEADING: bool, const SE
     let va = cursor.wrapping_add_signed(i64::from(load.imm) + if LEADING { W as i64 } else { 0 });
     let entry = tlb_entry(tlb, va);
     if entry.tag != va & (!0xfff | (W as u64 - 1)) {
-        return STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb);
     }
     let subject = if SEARCH { load.rd } else { load.rs1 };
     let compare = h.rx_u(if branch.rs1 == subject {
@@ -109,7 +111,7 @@ unsafe fn step<const W: usize, const SIGNED: bool, const LEADING: bool, const SE
         count = count.min(iterations_to_bound(branch.op, cursor, compare, W as u64));
     }
     let Some(end) = cursor.checked_add(count * W as u64) else {
-        return STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let value = extend::<W, SIGNED>(host_read::<W>(host + (count as usize - 1) * W));
     h.wx_u(load.rd, value);

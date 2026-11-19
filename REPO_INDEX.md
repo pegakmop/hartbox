@@ -10,8 +10,8 @@ machine. For installation and everyday use, start with the [README](README.md).
 | iOS app | [Swift UI and terminal](ios/RvemuApp/), [Xcode project](ios/rvemu.xcodeproj/), and [Rust bridge](ios/rvemu-ios/src/lib.rs) |
 | CLI and machine | [Arguments and boot setup](src/main.rs) and [machine scheduling](src/machine.rs) |
 | Boot and storage | [Initramfs and guest init](src/initramfs.rs), [root disk format and warm-boot probe](src/ext2.rs), and [virtio block device](src/devices/blk.rs) |
-| RISC-V interpreter | [Harts](src/hart.rs), [decoded blocks](src/block.rs), [instruction decoder](src/insn.rs), and [scalar execution](src/exec.rs) |
-| Hot paths | [Instruction fusion](src/block/fusion.rs), [paired RAM accesses](src/block/linear_memory.rs), [bulk RAM operations](src/block/bulk.rs), [integer reductions](src/block/bulk/reduce.rs), [native floating point](src/fastfp.rs), and [generated templates](src/spec_index.rs) |
+| RISC-V interpreter | [Harts](src/hart.rs), [decoded blocks and links](src/block.rs), [threaded dispatch](src/block/dispatch.rs), [instruction decoder](src/insn.rs), and [scalar execution](src/exec.rs) |
+| Hot paths | [Instruction fusion](src/block/fusion.rs), [arithmetic and addressing idioms](src/block/idioms.rs), [paired RAM accesses](src/block/linear_memory.rs), [bulk RAM operations](src/block/bulk.rs), [integer reductions](src/block/bulk/reduce.rs), [native floating point](src/fastfp.rs), and [generated templates](src/spec_index.rs) |
 | Memory and threading | [RAM and device bus](src/bus.rs), [Sv39 and TLBs](src/mmu.rs), and [parallel harts](src/mt.rs) |
 | Firmware and devices | [Built-in SBI](src/sbi.rs), [device tree](src/fdt.rs), and [emulated devices](src/devices/) |
 | Networking and SSH | [IPv4/IPv6 gateway](src/net/mod.rs), [DNS proxy](src/net/dns.rs), [iOS SSH integration](ios/RvemuApp/Rssh.swift), and [rssh script](tools/rssh) |
@@ -19,9 +19,12 @@ machine. For installation and everyday use, start with the [README](README.md).
 Both front ends create a machine that loads the kernel, initramfs, and devices.
 The scheduler runs each hart through decoded blocks cached by physical address.
 Static handlers fuse decoded operations and batch eligible RAM loops within a
-page and the scheduler budget. Ordinary instruction handlers preserve precise
-traps and device accesses when a fast-path check fails. The one-hart iOS app
-uses the cooperative scheduler and the same statically compiled engine.
+page and the scheduler budget. ARM64 handlers can bring the next handler and
+its operands into registers in one load. Loads and stores through one base
+register can share a checked RAM translation. Ordinary instruction handlers
+preserve precise traps and device accesses when a fast-path check fails. The
+one-hart iOS app uses the cooperative scheduler and the same statically
+compiled engine.
 
 ## Tests
 

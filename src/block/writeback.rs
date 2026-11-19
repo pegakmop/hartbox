@@ -1,6 +1,6 @@
 //! Memory runs with a single update to the address register.
 
-use super::{host_read, host_write, pre3, pre4, pre5, pre6, pre7, pre8, tlb_entry, Chain, STEPS};
+use super::{invoke, host_read, host_write, pre3, pre4, pre5, pre6, pre7, pre8, tlb_entry, Chain, STEPS};
 use crate::bus::Bus;
 use crate::hart::{FastTlb, Hart, FTLB_SETS};
 use crate::insn::{DInsn, Op, Step};
@@ -105,7 +105,7 @@ unsafe fn step<const N: usize, const W: usize, const STORE: bool, const LEADING:
     let entry = tlb_entry(table, va);
     let delta = va.wrapping_sub(entry.tag).rotate_right(W.trailing_zeros());
     if entry.tag == u64::MAX || delta > (metadata >> 32) as u64 {
-        return STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb);
     }
 
     if LEADING {
@@ -134,7 +134,7 @@ unsafe fn step<const N: usize, const W: usize, const STORE: bool, const LEADING:
     }
     if !LEADING {
         h.set_x(update.rd, adjusted);
-        return next(chain, tlb, h, bus, d.add(N), adjusted, last);
+        return next.run(chain, tlb, h, bus, adjusted, last);
     }
-    next(chain, tlb, h, bus, d.add(N), last, previous)
+    next.run(chain, tlb, h, bus, last, previous)
 }

@@ -1,7 +1,7 @@
 //! Paired accesses for decoded runs with consecutive word or doubleword addresses.
 
 use super::{
-    extend, host_read, host_write, pre2, pre3, pre4, pre5, pre6, pre7, pre8, tlb_entry, Chain,
+    extend, host_read, host_write, invoke, pre2, pre3, pre4, pre5, pre6, pre7, pre8, tlb_entry, Chain,
     STEPS,
 };
 use crate::bus::Bus;
@@ -81,7 +81,7 @@ unsafe fn step<
     let entry = tlb_entry(table, va);
     let delta = va.wrapping_sub(entry.tag).rotate_right(W.trailing_zeros());
     if entry.tag == u64::MAX || delta > (4096 / W - N) as u64 {
-        return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
     }
 
     // One checked RAM translation covers the whole run. The planner selects
@@ -115,7 +115,7 @@ unsafe fn step<
             h.set_x(tail.rd, last);
         }
     }
-    next(chain, tlb, h, bus, d.add(N), last, previous)
+    next.run(chain, tlb, h, bus, last, previous)
 }
 
 #[inline(always)]

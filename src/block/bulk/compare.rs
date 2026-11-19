@@ -1,5 +1,7 @@
 //! Page-bounded comparisons of two independent RAM streams.
 
+use crate::block::invoke;
+
 use super::{
     extend, finish_direct_to, host_read, iterations_to_bound, pc_of, tlb_entry, Chain, STEPS,
 };
@@ -175,7 +177,7 @@ unsafe fn step<const W: usize, const SIGNED: bool>(
         let va = cursor.wrapping_add_signed(i64::from(load.imm) + (before * W) as i64);
         let entry = tlb_entry(tlb, va);
         if entry.tag != va & (!0xfff | (W as u64 - 1)) {
-            return STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb);
+            return invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb);
         }
         count = count
             .min((4096 - (va & 0xfff)) / W as u64)
@@ -199,7 +201,7 @@ unsafe fn step<const W: usize, const SIGNED: bool>(
         count = count.min(iterations_to_bound(op, cursor, limit, W as u64) - 1);
     }
     if count < 2 {
-        return STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb);
     }
     let needle = (((data >> 9) & 7) != ABSENT)
         .then(|| h.rx_u(((data >> 17) & 31) as u8))
@@ -216,7 +218,7 @@ unsafe fn step<const W: usize, const SIGNED: bool>(
         count as usize,
     ) as u64;
     if count < 2 {
-        return STEPS[(*d).op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[(*d).op as usize], chain, tlb, h, bus, d, fa, fb);
     }
     for input in streams {
         let value = extend::<W, SIGNED>(host_read::<W>(input.host + (count as usize - 1) * W));

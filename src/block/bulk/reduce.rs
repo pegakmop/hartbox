@@ -1,5 +1,7 @@
 //! Integer reductions of known consecutive RAM loads.
 
+use crate::block::invoke;
+
 use super::{
     extend, finish_direct_to, go_tlb, host_read, iterations_to_bound, pc_of, tlb_entry, Chain,
     Plan, Stream, STEPS,
@@ -136,7 +138,7 @@ unsafe fn step<const W: usize, const SIGNED: bool, const OP: u8>(
     let va = cursor.wrapping_add_signed(i64::from((data >> 24) as i16));
     let entry = tlb_entry(tlb, va);
     if entry.tag != va & (!0xfff | (W as u64 - 1)) {
-        return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
     }
     let branch = &*d.add(len - 1);
     let after = u64::from(branch.index) + 1;
@@ -151,7 +153,7 @@ unsafe fn step<const W: usize, const SIGNED: bool, const OP: u8>(
         .min(iterations_to_bound(branch.op, cursor, bound, stride as u64));
     let bytes = count * stride as u64;
     if count == 0 || cursor.checked_add(bytes).is_none() {
-        return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
     }
     let host = va.wrapping_add(entry.addend) as usize;
     let mut result = h.rx_u(accumulator);

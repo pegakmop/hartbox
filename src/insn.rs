@@ -3,7 +3,7 @@
 //! Every instruction (32-bit or compressed) is decoded once into a compact
 //! [`DInsn`] — 32 bytes, with the immediate already sign-extended and the
 //! compressed forms already mapped onto their base-ISA equivalents. Decoded
-//! instructions are cached per physical page by the bus (see `bus.rs`), so
+//! instructions are cached per physical page by the block engine, so
 //! the interpreter's hot loop never touches raw encodings.
 
 use std::cell::Cell;
@@ -126,34 +126,36 @@ pub enum Op {
 #[derive(Clone, Debug, Default)]
 #[repr(C)]
 pub struct DInsn {
-    pub op: Op,
+    // These fields and the handler pointer form the first 16 bytes.
     pub rd: u8,
     pub rs1: u8,
     pub rs2: u8,
     pub rs3: u8,
+    pub imm: i32,
+    /// The block-engine step that runs this instruction. Set when the block is
+    /// built (see `block.rs`); decoding leaves it empty.
+    pub step: Option<Step>,
+    pub op: Op,
     pub f: u8,
     pub len: u8,
     /// Index of this instruction in its block, filled in when the block is
     /// built. It lets a block exit count retired instructions with one load
     /// instead of dividing a pointer difference by the instruction size.
     pub index: u8,
-    pub imm: i32,
     /// Offset of this instruction's pc from the start of its block (the terminator
     /// holds the offset of the fall-through pc). Steps add it to the current
     /// block's virtual PC, carried in an argument on ARM64.
     pub off: i32,
-    /// The block-engine step that runs this instruction. Set when the block is
-    /// built (see `block.rs`); decoding leaves it empty.
-    pub step: Option<Step>,
     /// Cache for a fixed exit: zero while unresolved, a direct pointer for a
     /// same-page successor, or a tagged pointer to a checked link slot.
     /// Fused memory operations and PC-relative jumps also store metadata here.
     pub link: Cell<usize>,
 }
 
-/// Runs one threaded unit with the active load TLB, hart, bus, instruction and
-/// two forwarded results. `Chain` carries the block PC and budget in registers
-/// on ARM64 and uses hart fields on x86-64 to fit six integer arguments.
+/// Runs one threaded unit with the active load TLB, hart, bus, instruction,
+/// and a forwarded result. The last argument holds either another result or
+/// the preloaded operands. `Chain` carries the block PC and budget in registers
+/// on ARM64 and uses hart fields on other targets to fit six integer arguments.
 /// Returns the instruction count accounted for by the complete chain.
 pub type Step = unsafe fn(Chain, *mut crate::hart::FastTlb, &mut Hart, &mut Bus, *const DInsn, u64, u64) -> u64;
 
@@ -184,12 +186,12 @@ impl DInsn {
     }
 
     #[inline(always)]
-    fn c(op: Op, rd: u8, rs1: u8, rs2: u8, imm: i64) -> DInsn {
+    const fn c(op: Op, rd: u8, rs1: u8, rs2: u8, imm: i64) -> DInsn {
         DInsn { op, rd, rs1, rs2, rs3: 0, f: 0, len: 2, index: 0, imm: imm as i32, off: 0, step: None, link: Cell::new(0) }
     }
 
     #[inline(always)]
-    fn c_illegal(raw: u16) -> DInsn {
+    const fn c_illegal(raw: u16) -> DInsn {
         DInsn { op: Op::Illegal, rd: 0, rs1: 0, rs2: 0, rs3: 0, f: 0, len: 2, index: 0, imm: raw as i32, off: 0, step: None, link: Cell::new(0) }
     }
 }
@@ -199,6 +201,33 @@ impl DInsn {
 pub(crate) struct DecodeCache(Box<[DecodeEntry]>);
 
 const DECODE_SETS: usize = 2048;
+
+// RV64C has a small, fixed encoding space. The shared read-only table avoids
+// hashing compressed instructions and leaves the per-hart cache to RV64 words.
+#[derive(Clone, Copy)]
+struct Compressed {
+    imm: i32,
+    op: Op,
+    rd: u8,
+    rs1: u8,
+    rs2: u8,
+}
+
+const _: () = assert!(std::mem::size_of::<Compressed>() == 8);
+
+static COMPRESSED: [Compressed; 1 << 16] = {
+    let empty = Compressed { imm: 0, op: Op::Illegal, rd: 0, rs1: 0, rs2: 0 };
+    let mut table = [empty; 1 << 16];
+    let mut i = 0;
+    while i < table.len() {
+        if i & 3 != 3 {
+            let d = decode16(i as u16);
+            table[i] = Compressed { imm: d.imm, op: d.op, rd: d.rd, rs1: d.rs1, rs2: d.rs2 };
+        }
+        i += 1;
+    }
+    table
+};
 
 #[derive(Clone, Copy)]
 struct DecodeEntry {
@@ -217,9 +246,9 @@ const _: () = assert!(std::mem::size_of::<DecodeEntry>() == 16);
 
 impl Default for DecodeCache {
     fn default() -> Self {
-        // A compressed key never has a high halfword and a 32-bit key ends in 11.
+        // A 32-bit instruction ends in 11, so zero can't match a decoded key.
         let empty = DecodeEntry {
-            word: 0x10000, imm: 0, op: Op::Empty, rd: 0, rs1: 0,
+            word: 0, imm: 0, op: Op::Empty, rd: 0, rs1: 0,
             rs2: 0, rs3: 0, f: 0, len: 0,
         };
         Self(vec![empty; DECODE_SETS].into_boxed_slice())
@@ -229,8 +258,10 @@ impl Default for DecodeCache {
 impl DecodeCache {
     #[inline(always)]
     pub(crate) fn decode(&mut self, word: u32) -> DInsn {
-        let compressed = word & 3 != 3;
-        let word = if compressed { word & 0xffff } else { word };
+        if word & 3 != 3 {
+            let d = COMPRESSED[word as u16 as usize];
+            return DInsn::c(d.op, d.rd, d.rs1, d.rs2, i64::from(d.imm));
+        }
         let index = ((word ^ (word >> 11) ^ (word >> 22)) as usize) & (DECODE_SETS - 1);
         let entry = &mut self.0[index];
         if entry.word == word {
@@ -239,7 +270,7 @@ impl DecodeCache {
                 f: entry.f, len: entry.len, imm: entry.imm, ..DInsn::EMPTY
             };
         }
-        let d = if compressed { decode16(word as u16) } else { decode32(word) };
+        let d = decode32(word);
         *entry = DecodeEntry {
             word, imm: d.imm, op: d.op, rd: d.rd, rs1: d.rs1,
             rs2: d.rs2, rs3: d.rs3, f: d.f, len: d.len,
@@ -278,7 +309,7 @@ impl Op {
 }
 
 #[inline(always)]
-fn sext(x: u32, bits: u32) -> i64 {
+const fn sext(x: u32, bits: u32) -> i64 {
     (((x << (32 - bits)) as i32) >> (32 - bits)) as i64
 }
 
@@ -485,7 +516,7 @@ pub fn decode32(w: u32) -> DInsn {
 }
 
 /// Decode a 16-bit compressed (RVC) instruction into its base equivalent.
-pub fn decode16(h: u16) -> DInsn {
+pub const fn decode16(h: u16) -> DInsn {
     let h = h as u32;
     let q = h & 3;
     let f3 = (h >> 13) & 7;
@@ -693,6 +724,22 @@ pub fn decode_parts(lo: u16, hi: impl FnOnce() -> Option<u16>) -> Option<DInsn> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn packed_compressed_decode_ignores_the_next_halfword() {
+        let mut cache = DecodeCache::default();
+        for halfword in 0..=u16::MAX {
+            if halfword & 3 == 3 {
+                continue;
+            }
+            let d = decode16(halfword);
+            let cached = cache.decode(0xfedc_0000 | u32::from(halfword));
+            assert_eq!(
+                (d.op, d.rd, d.rs1, d.rs2, d.rs3, d.f, d.imm, d.len),
+                (cached.op, cached.rd, cached.rs1, cached.rs2, cached.rs3, cached.f, cached.imm, cached.len),
+            );
+        }
+    }
 
     #[test]
     fn decodes_addi() {

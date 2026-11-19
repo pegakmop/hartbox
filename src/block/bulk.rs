@@ -1,6 +1,6 @@
 //! Page-bounded fast paths for regular RAM copy, fill and scan loops.
 
-use super::{extend, finish_direct_to, go_tlb, host_read, host_write, pc_of, tlb_entry, Chain, STEPS};
+use super::{invoke, extend, finish_direct_to, go_tlb, host_read, host_write, pc_of, tlb_entry, Chain, STEPS};
 use crate::bus::Bus;
 use crate::hart::{FastTlb, Hart, FTLB_SETS};
 use crate::insn::{DInsn, Op, Step};
@@ -215,7 +215,7 @@ unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool, const 
     let write = tlb_entry(tlb.add(FTLB_SETS), dst_va);
     let tag_mask = !0xfff | (W as u64 - 1);
     if write.tag != dst_va & tag_mask {
-        return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
     }
 
     let src = if COPY { h.rx_u(first.rs1) } else { 0 };
@@ -230,7 +230,7 @@ unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool, const 
     if COPY {
         let read = tlb_entry(tlb, src_va);
         if read.tag != src_va & tag_mask {
-            return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+            return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
         }
         src_host = src_va.wrapping_add(read.addend) as usize;
         room = room.min(room_at(src_va));
@@ -253,7 +253,7 @@ unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool, const 
     let budget = 1 + left.saturating_sub(k).div_ceil(len as u64);
     let mut count = (room / stride as u64).min(budget);
     if count == 0 {
-        return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
     }
     if SEARCH {
         let raw = bound & (u64::MAX >> (64 - W * 8));
@@ -269,19 +269,19 @@ unsafe fn step_bulk<const W: usize, const COPY: bool, const SIGNED: bool, const 
     let advance = if BACKWARD { -(bytes as i64) } else { bytes as i64 };
     let dst_host = dst_va.wrapping_add(write.addend) as usize;
     let Some(dst_end) = dst.checked_add_signed(advance) else {
-        return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+        return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
     };
     let low = |host| if BACKWARD { host - (bytes as usize - W) } else { host };
 
     if COPY {
         let Some(src_end) = src.checked_add_signed(advance) else {
-            return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+            return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
         };
         let distance = dst_host.abs_diff(src_host);
         let overwrites_future = distance != 0 && distance < bytes as usize
             && (dst_host < src_host) == BACKWARD;
         if overwrites_future {
-            return STEPS[first.op as usize](chain, tlb, h, bus, d, fa, fb);
+            return invoke(STEPS[first.op as usize], chain, tlb, h, bus, d, fa, fb);
         }
         // Read the final iteration's temporaries before the host copy because
         // it can overwrite source bytes through a virtual alias.
